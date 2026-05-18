@@ -1,0 +1,38 @@
+name: AQI Automated Pipelines
+
+on:
+  schedule:
+    - cron: '0 * * * *'    # Feature pipeline every hour
+    - cron: '0 3 * * *'    # Training pipeline every day at 3am UTC
+  workflow_dispatch:         # Manual trigger button on GitHub
+
+jobs:
+  feature-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run feature pipeline
+        run: python feature_pipeline.py
+        env:
+          AQICN_TOKEN: ${{ secrets.AQICN_TOKEN }}
+          OPENWEATHER_KEY: ${{ secrets.OPENWEATHER_KEY }}
+          CITY: Islamabad
+          FEATURE_STORE_PATH: feature_store
+
+      - name: Commit new data
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add feature_store/
+          git diff --staged --quiet || git commit -m "Auto: hourly feature update"
+          git push
