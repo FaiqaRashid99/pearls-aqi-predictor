@@ -1,0 +1,50 @@
+{
+  "best_model": "Gradient Boosting",
+  "rmse": 8.6971,
+  "mae": 6.6595,
+  "r2": 0.9131,
+  "feature_cols": [
+    "temp",
+    "feels_like",
+    "humidity",
+    "pressure",
+    "wind_speed",
+    "wind_direction",
+    "precipitation",
+    "weather_code",
+    "hour",
+    "day",
+    "month",
+    "dayofweek",
+    "is_weekend",
+    "is_rush_hour",
+    "aqi_change_rate"
+  ],
+  "trained_at": "2026-05-18 07:10:30",
+  "all_results": [
+    {
+      "model": "Random Forest",
+      "rmse": 9.6563,
+      "mae": 7.2866,
+      "r2": 0.8929
+    },
+    {
+      "model": "Gradient Boosting",
+      "rmse": 8.6971,
+      "mae": 6.6595,
+      "r2": 0.9131
+    },
+    {
+      "model": "Ridge Regression",
+      "rmse": 32.5826,
+      "mae": 29.6872,
+      "r2": -0.219
+    },
+    {
+      "model": "Keras Neural Network",
+      "rmse": 25.7534,
+      "mae": 22.1021,
+      "r2": 0.2384
+    }
+  ]
+}
