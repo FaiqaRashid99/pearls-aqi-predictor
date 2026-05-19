@@ -20,7 +20,7 @@
     "is_rush_hour",
     "aqi_change_rate"
   ],
-  "trained_at": "2026-05-19 14:56:12",
+  "trained_at": "2026-05-19 15:14:56",
   "all_results": [
     {
       "model": "Random Forest",
