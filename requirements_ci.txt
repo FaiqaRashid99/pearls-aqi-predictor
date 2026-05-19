@@ -1,0 +1,13 @@
+requests
+pandas
+numpy
+scikit-learn
+shap
+streamlit
+plotly
+flask
+python-dotenv
+joblib
+openmeteo-requests
+requests-cache
+retry-requests
