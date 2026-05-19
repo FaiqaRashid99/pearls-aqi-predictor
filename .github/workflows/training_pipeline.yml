@@ -45,15 +45,30 @@ jobs:
         
       - name: Show model results
         run: |
-          echo "## Model Training Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
           python -c "
-          import json
+          import json, os
+
           with open('models/model_metadata.json') as f:
               m = json.load(f)
-          print('| Model | RMSE | MAE | R² |', file=open('$GITHUB_STEP_SUMMARY', 'a'))
-          print('|---|---|---|---|', file=open('$GITHUB_STEP_SUMMARY', 'a'))
+
+          lines = []
+          lines.append('## Model Training Results')
+          lines.append('')
+          lines.append('| Model | RMSE | MAE | R² |')
+          lines.append('|---|---|---|---|')
           for r in m['all_results']:
-              print(f\"| {r['model']} | {r['rmse']} | {r['mae']} | {r['r2']} |\", file=open('$GITHUB_STEP_SUMMARY', 'a'))
-          print(f\"\n**Best: {m['best_model']} — R²: {m['r2']}**\", file=open('$GITHUB_STEP_SUMMARY', 'a'))
+              lines.append(f\"| {r['model']} | {r['rmse']} | {r['mae']} | {r['r2']} |\")
+
+          # Add Keras separately if its metrics file exists
+          keras_path = 'models/keras_metrics.json'
+          if os.path.exists(keras_path):
+              with open(keras_path) as f:
+                  k = json.load(f)
+              lines.append(f\"| Keras Neural Network | {k['rmse']} | {k['mae']} | {k['r2']} |\")
+
+          lines.append('')
+          lines.append(f\"**Best: {m['best_model']} — R²: {m['r2']}**\")
+
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write('\n'.join(lines))
           "

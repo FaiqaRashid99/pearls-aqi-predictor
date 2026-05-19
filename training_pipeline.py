@@ -195,6 +195,13 @@ def train_keras_model(X_train, X_test, y_train, y_test, feature_cols):
     joblib.dump(imputer, os.path.join(MODEL_DIR, "keras_imputer.pkl"))
     joblib.dump(scaler,  os.path.join(MODEL_DIR, "keras_scaler.pkl"))
     print(f"   Keras model saved to models/keras_model.keras")
+    
+    #####
+    import json
+    keras_metrics = {"rmse": round(metrics["rmse"], 4), "mae": round(metrics["mae"], 4), "r2": round(metrics["r2"], 4)}
+    with open(os.path.join(MODEL_DIR, "keras_metrics.json"), "w") as f:
+        json.dump(keras_metrics, f)
+    ####
 
     return {**metrics, "pipeline": None}
 
