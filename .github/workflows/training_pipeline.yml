@@ -1,0 +1,42 @@
+name: Training Pipeline
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  training-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements_ci.txt
+
+      - name: Run training pipeline
+        run: python training_pipeline.py
+        env:
+          AQICN_TOKEN: ${{ secrets.AQICN_TOKEN }}
+          OPENWEATHER_KEY: ${{ secrets.OPENWEATHER_KEY }}
+          CITY: Islamabad
+          FEATURE_STORE_PATH: feature_store
+
+      - name: Commit model artifacts
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add models/
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "ci: daily model retrain"
+          git pull --rebase
+          git push
