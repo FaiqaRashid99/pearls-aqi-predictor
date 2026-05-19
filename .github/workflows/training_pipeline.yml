@@ -42,3 +42,18 @@ jobs:
           git commit -m "ci: daily model retrain"
           git pull --rebase
           git push
+        
+      - name: Show model results
+        run: |
+          echo "## Model Training Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          python -c "
+          import json
+          with open('models/model_metadata.json') as f:
+              m = json.load(f)
+          print('| Model | RMSE | MAE | R² |', file=open('$GITHUB_STEP_SUMMARY', 'a'))
+          print('|---|---|---|---|', file=open('$GITHUB_STEP_SUMMARY', 'a'))
+          for r in m['all_results']:
+              print(f\"| {r['model']} | {r['rmse']} | {r['mae']} | {r['r2']} |\", file=open('$GITHUB_STEP_SUMMARY', 'a'))
+          print(f\"\n**Best: {m['best_model']} — R²: {m['r2']}**\", file=open('$GITHUB_STEP_SUMMARY', 'a'))
+          "
