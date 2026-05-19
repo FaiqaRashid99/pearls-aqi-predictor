@@ -40,7 +40,7 @@ jobs:
           git add models/
           git diff --staged --quiet && echo "No changes" && exit 0
           git commit -m "ci: daily model retrain"
-          git pull --rebase
+          git pull origin main --strategy-option=theirs
           git push
         
       - name: Show model results
