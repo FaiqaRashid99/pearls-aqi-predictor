@@ -20,7 +20,7 @@
     "is_rush_hour",
     "aqi_change_rate"
   ],
-  "trained_at": "2026-05-19 14:56:12",
+  "trained_at": "2026-05-19 14:58:43",
   "all_results": [
     {
       "model": "Random Forest",
@@ -39,6 +39,12 @@
       "rmse": 39.4687,
       "mae": 31.9623,
       "r2": -0.7531
+    },
+    {
+      "model": "Keras Neural Network",
+      "rmse": 23.9663,
+      "mae": 20.8105,
+      "r2": 0.3536
     }
   ]
 }
