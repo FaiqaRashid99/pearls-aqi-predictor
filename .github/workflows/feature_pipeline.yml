@@ -32,6 +32,8 @@ jobs:
           OPENWEATHER_KEY: ${{ secrets.OPENWEATHER_KEY }}
           CITY: Islamabad
           FEATURE_STORE_PATH: feature_store
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
 
       - name: Commit new data
         run: |

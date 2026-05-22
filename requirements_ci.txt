@@ -11,3 +11,4 @@ joblib
 openmeteo-requests
 requests-cache
 retry-requests
+supabase
