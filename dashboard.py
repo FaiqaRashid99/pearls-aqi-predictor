@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import requests
+from supabase import create_client
 
 load_dotenv()
 
@@ -93,14 +94,46 @@ def load_metadata():
     with open(path) as f:
         return json.load(f)
 
+# @st.cache_data(ttl=3600)
+# def load_feature_store():
+#     path = os.path.join(FEATURE_STORE, "aqi_features.csv")
+#     if not os.path.exists(path):
+#         return pd.DataFrame()
+#     df = pd.read_csv(path, parse_dates=["timestamp"])
+#     df.sort_values("timestamp", inplace=True)
+#     return df
+
 @st.cache_data(ttl=3600)
 def load_feature_store():
-    path = os.path.join(FEATURE_STORE, "aqi_features.csv")
-    if not os.path.exists(path):
+    try:
+        supabase_client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_KEY")
+        )
+        all_rows = []
+        page = 0
+        while True:
+            result = (supabase_client.table("aqi_features")
+                      .select("*")
+                      .order("timestamp")
+                      .range(page * 1000, (page + 1) * 1000 - 1)
+                      .execute())
+            if not result.data:
+                break
+            all_rows.extend(result.data)
+            if len(result.data) < 1000:
+                break
+            page += 1
+        df = pd.DataFrame(all_rows)
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df.sort_values("timestamp", inplace=True)
+        return df
+    except Exception as e:
+        st.warning(f"Supabase load failed: {e}")
+        path = os.path.join(FEATURE_STORE, "aqi_features.csv")
+        if os.path.exists(path):
+            return pd.read_csv(path, parse_dates=["timestamp"])
         return pd.DataFrame()
-    df = pd.read_csv(path, parse_dates=["timestamp"])
-    df.sort_values("timestamp", inplace=True)
-    return df
 
 @st.cache_data(ttl=1800)
 def fetch_current_aqi():
