@@ -1,117 +1,152 @@
-# aqi-predictor
+# 🌬️ Pearls AQI Predictor — Islamabad
 
-# 🌬️ AQI Predictor — Islamabad
+> End-to-end Machine Learning pipeline for Air Quality Index (AQI) forecasting with automated data collection, feature engineering, model training, and real-time predictions through a live web dashboard.
 
-An end-to-end machine learning system that predicts Air Quality Index (AQI) for the next 3 days using a fully automated, serverless pipeline. Live data is fetched every hour, models retrain daily, and results are served through an interactive Streamlit dashboard.
-
----
-
-## 📸 Dashboard Preview
-
-> Real-time AQI display · 3-day forecast · Historical trends · SHAP feature importance · Model performance comparison
+## 🌐 Live Dashboard
+**[https://pearls-aqi-predictor-gf5vcjmhgdibssgxha7erk.streamlit.app](https://pearls-aqi-predictor-gf5vcjmhgdibssgxha7erk.streamlit.app)**
 
 ---
 
-## 🏗️ Architecture
+## 📋 Project Overview
+
+This project predicts the Air Quality Index (AQI) for Islamabad, Pakistan for the next 3 days using a fully serverless, automated ML pipeline. It fetches real-time data every hour, retrains models daily, and serves predictions through an interactive web dashboard.
+
+---
+
+## 🏗️ System Architecture
 
 ```
-External APIs          Feature Pipeline         Feature Store
-─────────────         ─────────────────        ─────────────
-AQICN (AQI)    ──►   feature_pipeline.py  ──►  feature_store/
-OpenWeather    ──►   (runs every hour)         aqi_features.csv
-                      via GitHub Actions
-                             │
-                             ▼
-                     Training Pipeline
-                     ─────────────────
-                     training_pipeline.py
-                     (runs every 24h)
-                      via GitHub Actions
-                             │
-                             ▼
-                        Model Registry
-                        ──────────────
-                        models/
-                        ├── best_model.pkl
-                        ├── keras_model.keras
-                        ├── model_metadata.json
-                        ├── keras_metrics.json
-                        └── shap_importance.csv
-                             │
-                             ▼
-                         Dashboard
-                         ─────────
-                         dashboard.py (Streamlit)
-                         · Current AQI & weather
-                         · 3-day hourly forecast
-                         · Historical trends
-                         · SHAP explanations
+AQICN API ──────────────────────┐
+                                 ├──► Feature Pipeline ──► Supabase Feature Store
+OpenWeather API ─────────────────┘         (hourly)              (cloud DB)
+                                                                      │
+Open-Meteo Archive ──► Historical Backfill ──────────────────────────┘
+                                                                      │
+                                                                      ▼
+                                                          Training Pipeline (daily)
+                                                                      │
+                                                          ┌───────────┴───────────┐
+                                                          │    Model Registry     │
+                                                          │  (GitHub + models/)   │
+                                                          └───────────┬───────────┘
+                                                                      │
+                                                          Streamlit Dashboard
+                                                         (3-day AQI Forecast)
 ```
 
 ---
 
-## Features
+## ⚙️ Technology Stack
 
-- **Live AQI & weather data** fetched every hour automatically
-- **3-day hourly AQI forecast** using trained ML models
-- **Multiple models compared** — Random Forest, Gradient Boosting, Ridge Regression, Keras Neural Network
-- **SHAP feature importance** — understand what drives AQI predictions
-- **Hazard alerts** — automatic warnings when AQI exceeds 150
-- **Historical trend analysis** — by day, hour, and month
-- **Fully automated CI/CD** via GitHub Actions — no manual intervention needed
-- **Historical backfill** — 90 days of weather data from Open-Meteo used for training
+| Component | Technology |
+|---|---|
+| Language | Python 3.13 |
+| ML Models | Scikit-learn, Keras |
+| Feature Store | Supabase (PostgreSQL) |
+| CI/CD | GitHub Actions |
+| Dashboard | Streamlit + Plotly |
+| APIs | AQICN, OpenWeatherMap, Open-Meteo |
+| Explainability | SHAP |
+| Version Control | Git + GitHub |
 
 ---
 
-## 🤖 ML Models & Results
+## 🔑 Key Features
+
+### 1. Feature Pipeline (Hourly)
+- Fetches live AQI and pollutant data from AQICN API
+- Fetches weather data from OpenWeatherMap API
+- Engineers time-based features (hour, day, month, rush hour, weekend)
+- Computes derived features (AQI change rate)
+- Stores to Supabase cloud database + local CSV backup
+- Runs automatically every hour via GitHub Actions
+
+### 2. Historical Backfill
+- Fetches 90 days of real hourly weather from Open-Meteo archive
+- Estimates historical AQI using seasonal and meteorological patterns
+- Generated 2,197 training rows for model training
+
+### 3. Training Pipeline (Daily)
+- Loads all features from Supabase feature store
+- Trains 4 models: Random Forest, Gradient Boosting, Ridge Regression, Keras Neural Network
+- Evaluates using RMSE, MAE, and R² metrics
+- Computes SHAP feature importance
+- Saves best model automatically
+- Runs daily at 3am UTC via GitHub Actions
+
+### 4. Web Dashboard
+- Live current AQI with color-coded health category
+- ⚠️ Hazard alerts when AQI exceeds 150
+- 3-day hourly AQI forecast
+- Historical trend charts (daily, hourly, monthly)
+- SHAP feature importance visualization
+- Model performance comparison
+
+### 5. CI/CD Automation
+- Feature pipeline: runs every hour automatically
+- Training pipeline: runs every day automatically
+- New model committed to GitHub daily
+- Dashboard updates automatically with fresh predictions
+
+---
+
+## 📊 Model Performance
 
 | Model | RMSE | MAE | R² |
 |---|---|---|---|
-| **Gradient Boosting** ⭐ | 9.45 | 7.15 | 0.8994 |
-| Random Forest | 9.89 | 7.42 | 0.8898 |
-| Keras Neural Network | 23.97 | 20.81 | 0.3536 |
-| Ridge Regression | 39.47 | 31.96 | -0.7531 |
+| **Gradient Boosting** | **12.41** | **7.89** | **0.8363** |
+| Random Forest | 14.26 | 9.48 | 0.7836 |
+| Ridge Regression | 66.97 | 44.32 | -3.77 |
+| Keras Neural Network | 32.39 | 25.55 | -0.12 |
 
-**Best model: Gradient Boosting** with R² = 0.8994
+**Best Model: Gradient Boosting** — predicts AQI within ±12 points on average.
 
-### Features Used
+---
+
+## 🔍 SHAP Feature Importance
+
+Top factors driving AQI predictions in Islamabad:
+
+1. 🌬️ **Wind Speed** — stronger winds disperse pollutants
+2. 📅 **Month** — seasonal smog patterns (worse Nov–Feb)
+3. 🚗 **Rush Hour** — traffic emissions spike AQI
+4. 💧 **Humidity** — high humidity traps particles
+5. 🕐 **Hour of Day** — daily pollution cycle
+
+---
+
+## 🗄️ Feature Store (Supabase)
+
+Features stored in Supabase PostgreSQL cloud database:
+
 | Feature | Description |
 |---|---|
-| `temp`, `feels_like` | Temperature from OpenWeatherMap |
+| `aqi` | Air Quality Index (target) |
+| `pm25`, `pm10` | Particulate matter |
+| `no2`, `o3`, `co`, `so2` | Pollutant gases |
+| `temp`, `feels_like` | Temperature (°C) |
 | `humidity`, `pressure` | Atmospheric conditions |
 | `wind_speed`, `wind_direction` | Wind data |
-| `precipitation` | Rainfall |
-| `weather_code` | WMO weather condition code |
-| `hour`, `day`, `month`, `dayofweek` | Time-based features |
-| `is_weekend`, `is_rush_hour` | Engineered traffic proxies |
-| `aqi_change_rate` | AQI delta from previous hour |
+| `precipitation` | Rainfall (mm) |
+| `hour`, `day`, `month`, `dayofweek` | Time features |
+| `is_weekend`, `is_rush_hour` | Derived binary features |
+| `aqi_change_rate` | AQI change from previous hour |
 
 ---
 
-## ⚙️ Automated Pipelines (GitHub Actions)
+## 🚀 How to Run Locally
 
-| Pipeline | Schedule | What it does |
-|---|---|---|
-| `feature_pipeline.yml` | Every hour | Fetches AQI + weather, appends to CSV |
-| `training_pipeline.yml` | Daily at 3 AM UTC | Retrains all models, saves best |
-
-Model metrics are visible directly on the GitHub Actions **Summary** tab after each training run.
-
----
-
-## 🚀 Local Setup
-
-### 1. Clone the repo
+### 1. Clone the repository
 ```bash
-git clone https://github.com/FaiqaRashid99/aqi-predictor.git
-cd aqi-predictor
+git clone https://github.com/FaiqaRashid99/pearls-aqi-predictor.git
+cd pearls-aqi-predictor
 ```
 
-### 2. Create a virtual environment
+### 2. Create virtual environment
 ```bash
 python -m venv venv
-venv\Scripts\activate        # Windows
-source venv/bin/activate     # Mac/Linux
+venv\Scripts\activate  # Windows
+source venv/bin/activate  # Mac/Linux
 ```
 
 ### 3. Install dependencies
@@ -120,35 +155,25 @@ pip install -r requirements.txt
 ```
 
 ### 4. Set up environment variables
-Create a `.env` file in the root directory:
-```env
+Create a `.env` file:
+```
 AQICN_TOKEN=your_aqicn_token
 OPENWEATHER_KEY=your_openweather_key
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_anon_key
 CITY=Islamabad
 FEATURE_STORE_PATH=feature_store
 ```
 
-Get your free API keys:
-- AQICN: https://aqicn.org/data-platform/token/
-- OpenWeather: https://openweathermap.org/api
-
-### 5. Test your API keys
+### 5. Run pipelines
 ```bash
-python test_apis.py
-```
+# Collect current data
+python feature_pipeline.py
 
-### 6. Run the historical backfill (generates training data)
-```bash
-python backfill.py
-```
-
-### 7. Train the models
-```bash
+# Train models
 python training_pipeline.py
-```
 
-### 8. Launch the dashboard
-```bash
+# Launch dashboard
 streamlit run dashboard.py
 ```
 
@@ -157,67 +182,54 @@ streamlit run dashboard.py
 ## 📁 Project Structure
 
 ```
-aqi-predictor/
-│
+pearls-aqi-predictor/
 ├── .github/
 │   └── workflows/
-│       ├── feature_pipeline.yml   # Hourly data collection
-│       └── training_pipeline.yml  # Daily model retraining
-│
+│       ├── feature_pipeline.yml    ← Runs hourly
+│       └── training_pipeline.yml  ← Runs daily
 ├── feature_store/
-│   └── aqi_features.csv           # Auto-updated every hour
-│
+│   └── aqi_features.csv           ← Local CSV backup
 ├── models/
-│   ├── best_model.pkl             # Best sklearn model
-│   ├── keras_model.keras          # Neural network
-│   ├── model_metadata.json        # Metrics + model info
-│   ├── keras_metrics.json         # Keras-specific metrics
-│   └── shap_importance.csv        # Feature importance scores
-│
-├── backfill.py                    # Generate 90-day historical data
-├── feature_pipeline.py            # Hourly live data collection
-├── training_pipeline.py           # Model training + evaluation
-├── dashboard.py                   # Streamlit web dashboard
-├── test_apis.py                   # API connectivity check
-├── requirements.txt               # Full dependencies
-├── requirements_ci.txt            # Lightweight CI dependencies
-└── .env                           # API keys (not committed)
+│   ├── best_model.pkl             ← Trained Gradient Boosting
+│   ├── keras_model.keras          ← Trained Neural Network
+│   ├── model_metadata.json        ← Model metrics
+│   └── shap_importance.csv        ← SHAP values
+├── feature_pipeline.py            ← Hourly data collection
+├── backfill.py                    ← Historical data generation
+├── training_pipeline.py           ← Model training
+├── dashboard.py                   ← Streamlit web app
+├── requirements.txt               ← Full dependencies
+├── requirements_ci.txt            ← CI/CD dependencies
+└── .env                           ← API keys (not committed)
 ```
 
 ---
 
-## 🔑 GitHub Actions Secrets Required
+## 🌍 APIs Used
 
-Go to `Settings → Secrets and variables → Actions` and add:
-
-| Secret | Description |
-|---|---|
-| `AQICN_TOKEN` | Your AQICN API token |
-| `OPENWEATHER_KEY` | Your OpenWeatherMap API key |
-
----
-
-## 🛠️ Tech Stack
-
-| Category | Technology |
-|---|---|
-| Language | Python 3.11 |
-| ML Models | Scikit-learn, Keras / TensorFlow |
-| Explainability | SHAP |
-| Dashboard | Streamlit, Plotly |
-| Data Sources | AQICN API, OpenWeatherMap API, Open-Meteo |
-| CI/CD | GitHub Actions |
-| Version Control | Git + GitHub |
-
----
-
-## 📊 AQI Scale Reference
-
-| AQI Range | Category | Health Implication |
+| API | Purpose | Cost |
 |---|---|---|
-| 0–50 | 🟢 Good | Air quality is satisfactory |
-| 51–100 | 🟡 Moderate | Acceptable for most people |
-| 101–150 | 🟠 Unhealthy for Sensitive Groups | At-risk groups should limit outdoor activity |
-| 151–200 | 🔴 Unhealthy | Everyone may experience health effects |
-| 201–300 | 🟣 Very Unhealthy | Health alert — avoid outdoor activity |
-| 300+ | 🔴 Hazardous | Emergency conditions |
+| [AQICN](https://aqicn.org/api/) | Real-time AQI & pollutants | Free |
+| [OpenWeatherMap](https://openweathermap.org/api) | Live weather data | Free tier |
+| [Open-Meteo](https://open-meteo.com/) | Historical weather archive | Free |
+| [Supabase](https://supabase.com/) | Cloud feature store (PostgreSQL) | Free tier |
+
+---
+
+## 👩‍💻 Author
+
+**Faiq Rashid**
+- GitHub: [@FaiqaRashid99](https://github.com/FaiqaRashid99)
+
+---
+
+## 📚 References
+
+- [OpenWeatherMap](https://openweathermap.org/)
+- [Open-Meteo](https://open-meteo.com/)
+- [Supabase](https://supabase.com/)
+- [Streamlit](https://streamlit.io/)
+- [SHAP](https://shap.readthedocs.io/en/latest/)
+- [Air Quality Index](https://en.wikipedia.org/wiki/Air_quality_index)
+
+---
