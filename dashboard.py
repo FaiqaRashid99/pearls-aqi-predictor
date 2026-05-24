@@ -24,12 +24,22 @@ MODEL_DIR     = "models"
 
 LAT, LON = 33.6844, 73.0479
 
+# FEATURE_COLS = [
+#     "temp", "feels_like", "humidity", "pressure",
+#     "wind_speed", "wind_direction",
+#     "precipitation", "weather_code",
+#     "hour", "day", "month", "dayofweek",
+#     "is_weekend", "is_rush_hour", "aqi_change_rate",
+# ]
 FEATURE_COLS = [
-    "temp", "feels_like", "humidity", "pressure",
-    "wind_speed", "wind_direction",
+    "temp", "feels_like", "humidity", "pressure", "wind_speed", "wind_direction",
     "precipitation", "weather_code",
-    "hour", "day", "month", "dayofweek",
-    "is_weekend", "is_rush_hour", "aqi_change_rate",
+    "hour_sin", "hour_cos", "month_sin", "month_cos",
+    "dayofweek", "is_weekend", "is_rush_hour", "season",
+    "is_hot", "is_cold", "is_calm_wind", "is_strong_wind", "is_stagnant",
+    "temp_humidity", "wind_humidity",
+    "aqi_lag_72h", "aqi_lag_96h",
+    "aqi_rolling_72h", "aqi_rolling_96h"
 ]
 
 # AQI categories
@@ -205,50 +215,151 @@ def load_shap_importance():
 # ─────────────────────────────────────────────
 # PREDICTION
 # ─────────────────────────────────────────────
+# def make_forecast(model, forecast_df: pd.DataFrame, last_aqi: float):
+#     if forecast_df.empty or model is None:
+#         return pd.DataFrame()
+
+#     rows = []
+#     prev_aqi = last_aqi
+
+#     for _, row in forecast_df.iterrows():
+#         ts = row["timestamp"]
+#         features = {
+#             "temp":             row.get("temp", 30),
+#             "feels_like":       row.get("feels_like", 30),
+#             "humidity":         row.get("humidity", 50),
+#             "pressure":         row.get("pressure", 1010),
+#             "wind_speed":       row.get("wind_speed", 3),
+#             "wind_direction":   row.get("wind_direction", 180),
+#             "precipitation":    row.get("precipitation", 0),
+#             "weather_code":     row.get("weather_code", 0),
+#             "hour":             ts.hour,
+#             "day":              ts.day,
+#             "month":            ts.month,
+#             "dayofweek":        ts.weekday(),
+#             "is_weekend":       int(ts.weekday() >= 5),
+#             "is_rush_hour":     int(ts.hour in [7, 8, 9, 17, 18, 19]),
+#             "aqi_change_rate":  0.0,
+#         }
+#         X = pd.DataFrame([features])[FEATURE_COLS]
+#         predicted_aqi = float(model.predict(X)[0])
+#         features["aqi_change_rate"] = predicted_aqi - prev_aqi
+#         prev_aqi = predicted_aqi
+
+#         rows.append({
+#             "timestamp":     ts,
+#             "predicted_aqi": round(predicted_aqi, 1),
+#             "temp":          row.get("temp", 30),
+#             "humidity":      row.get("humidity", 50),
+#             "wind_speed":    row.get("wind_speed", 3),
+#             "precipitation": row.get("precipitation", 0),
+#             "date":          ts.date(),
+#             "hour":          ts.hour,
+#         })
+
+#     return pd.DataFrame(rows)
+
 def make_forecast(model, forecast_df: pd.DataFrame, last_aqi: float):
     if forecast_df.empty or model is None:
         return pd.DataFrame()
 
-    rows = []
-    prev_aqi = last_aqi
+    # Load historical AQI for lag features
+    hist_df = load_feature_store()
+    
+    # ── Normalize all timestamps to timezone-naive UTC ──
+    if not hist_df.empty:
+        hist_df["timestamp"] = pd.to_datetime(hist_df["timestamp"]).dt.tz_localize(None) \
+            if hist_df["timestamp"].dt.tz is None \
+            else pd.to_datetime(hist_df["timestamp"]).dt.tz_convert("UTC").dt.tz_localize(None)
 
+    rows = []
     for _, row in forecast_df.iterrows():
-        ts = row["timestamp"]
+        ts    = row["timestamp"]
+        # Normalize forecast timestamp to timezone-naive
+        if hasattr(ts, "tzinfo") and ts.tzinfo is not None:
+            ts_naive = ts.tz_convert("UTC").tz_localize(None)
+        else:
+            ts_naive = pd.Timestamp(ts)
+
+        month = ts_naive.month
+        hour  = ts_naive.hour
+
+        def get_lag(hours):
+            lag_time = ts_naive - pd.Timedelta(hours=hours)
+            if not hist_df.empty:
+                past = hist_df[hist_df["timestamp"] <= lag_time]
+                if not past.empty:
+                    return past["aqi"].iloc[-1]
+            return last_aqi
+
+        def get_rolling(hours):
+            end_time   = ts_naive - pd.Timedelta(hours=1)
+            start_time = ts_naive - pd.Timedelta(hours=hours)
+            if not hist_df.empty:
+                window = hist_df[
+                    (hist_df["timestamp"] >= start_time) &
+                    (hist_df["timestamp"] <= end_time)
+                ]
+                if not window.empty:
+                    return window["aqi"].mean()
+            return last_aqi
+
+        aqi_lag_72h     = get_lag(72)
+        aqi_lag_96h     = get_lag(96)
+        aqi_rolling_72h = get_rolling(72)
+        aqi_rolling_96h = get_rolling(96)
+
+        temp       = row.get("temp", 30)
+        humidity   = row.get("humidity", 50)
+        wind_speed = row.get("wind_speed", 3)
+
         features = {
-            "temp":             row.get("temp", 30),
-            "feels_like":       row.get("feels_like", 30),
-            "humidity":         row.get("humidity", 50),
+            "temp":             temp,
+            "feels_like":       row.get("feels_like", temp),
+            "humidity":         humidity,
             "pressure":         row.get("pressure", 1010),
-            "wind_speed":       row.get("wind_speed", 3),
+            "wind_speed":       wind_speed,
             "wind_direction":   row.get("wind_direction", 180),
             "precipitation":    row.get("precipitation", 0),
             "weather_code":     row.get("weather_code", 0),
-            "hour":             ts.hour,
-            "day":              ts.day,
-            "month":            ts.month,
-            "dayofweek":        ts.weekday(),
-            "is_weekend":       int(ts.weekday() >= 5),
-            "is_rush_hour":     int(ts.hour in [7, 8, 9, 17, 18, 19]),
-            "aqi_change_rate":  0.0,
+            "hour_sin":         np.sin(2 * np.pi * hour / 24),
+            "hour_cos":         np.cos(2 * np.pi * hour / 24),
+            "month_sin":        np.sin(2 * np.pi * month / 12),
+            "month_cos":        np.cos(2 * np.pi * month / 12),
+            "dayofweek":        ts_naive.weekday(),
+            "is_weekend":       int(ts_naive.weekday() >= 5),
+            "is_rush_hour":     int(hour in [7, 8, 9, 17, 18, 19]),
+            "season":           {12:0,1:0,2:0,3:1,4:1,5:1,
+                                 6:2,7:2,8:2,9:3,10:3,11:3}.get(month, 0),
+            "is_hot":           int(temp > 35),
+            "is_cold":          int(temp < 10),
+            "is_calm_wind":     int(wind_speed < 2),
+            "is_strong_wind":   int(wind_speed > 8),
+            "is_stagnant":      int(wind_speed < 2 and humidity > 70),
+            "temp_humidity":    temp * humidity,
+            "wind_humidity":    wind_speed * humidity,
+            "aqi_lag_72h":      aqi_lag_72h,
+            "aqi_lag_96h":      aqi_lag_96h,
+            "aqi_rolling_72h":  aqi_rolling_72h,
+            "aqi_rolling_96h":  aqi_rolling_96h,
         }
+
         X = pd.DataFrame([features])[FEATURE_COLS]
         predicted_aqi = float(model.predict(X)[0])
-        features["aqi_change_rate"] = predicted_aqi - prev_aqi
-        prev_aqi = predicted_aqi
+        predicted_aqi = max(0, round(predicted_aqi, 1))
 
         rows.append({
-            "timestamp":     ts,
-            "predicted_aqi": round(predicted_aqi, 1),
-            "temp":          row.get("temp", 30),
-            "humidity":      row.get("humidity", 50),
-            "wind_speed":    row.get("wind_speed", 3),
+            "timestamp":     ts_naive,
+            "predicted_aqi": predicted_aqi,
+            "temp":          temp,
+            "humidity":      humidity,
+            "wind_speed":    wind_speed,
             "precipitation": row.get("precipitation", 0),
-            "date":          ts.date(),
-            "hour":          ts.hour,
+            "date":          ts_naive.date(),
+            "hour":          hour,
         })
 
     return pd.DataFrame(rows)
-
 
 # ─────────────────────────────────────────────
 # MAIN DASHBOARD
