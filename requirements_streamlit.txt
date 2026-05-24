@@ -14,3 +14,4 @@ retry-requests
 supabase
 keras
 tensorflow-cpu
+xgboost

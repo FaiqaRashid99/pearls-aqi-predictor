@@ -1,0 +1,11 @@
+I performed preprocessing and got overfitting results so I changed the preprocessing to stricter version, above are training_pipeline.py and preprocessing.py files pasted. Analyze them and tell me if they are good to go or not ; let me paste current results as well:
+
+Reminder: I have not added these changes to github pipeline as my dashboard is not updated yet
+
+
+
+and for extra data:
+
+OpenAQ for Pakistan has very limited historical data — most stations only have data from 2024–2025 and coverage is spotty. You might get only a few hundred real rows, not 2000+.
+
+its ok 1 year data is enough
