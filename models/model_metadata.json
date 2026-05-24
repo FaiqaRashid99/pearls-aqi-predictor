@@ -1,8 +1,8 @@
 {
-  "best_model": "Gradient Boosting",
-  "rmse": 14.132,
-  "mae": 9.2399,
-  "r2": 0.7881,
+  "best_model": "XGBoost",
+  "rmse": 11.0489,
+  "mae": 7.4677,
+  "r2": 0.8724,
   "feature_cols": [
     "temp",
     "feels_like",
@@ -12,34 +12,51 @@
     "wind_direction",
     "precipitation",
     "weather_code",
-    "hour",
-    "day",
-    "month",
+    "hour_sin",
+    "hour_cos",
+    "month_sin",
+    "month_cos",
     "dayofweek",
     "is_weekend",
     "is_rush_hour",
-    "aqi_change_rate"
+    "season",
+    "is_hot",
+    "is_cold",
+    "is_calm_wind",
+    "is_strong_wind",
+    "is_stagnant",
+    "temp_humidity",
+    "wind_humidity",
+    "aqi_lag_72h",
+    "aqi_lag_96h",
+    "aqi_rolling_72h",
+    "aqi_rolling_96h"
   ],
-  "trained_at": "2026-05-23 21:23:56",
-  "feature_store": "Supabase",
+  "trained_at": "2026-05-24 01:08:20",
   "all_results": [
     {
       "model": "Random Forest",
-      "rmse": 15.7584,
-      "mae": 10.309,
-      "r2": 0.7365
+      "rmse": 14.0276,
+      "mae": 9.768,
+      "r2": 0.7943
     },
     {
       "model": "Gradient Boosting",
-      "rmse": 14.132,
-      "mae": 9.2399,
-      "r2": 0.7881
+      "rmse": 11.6951,
+      "mae": 7.8247,
+      "r2": 0.857
+    },
+    {
+      "model": "XGBoost",
+      "rmse": 11.0489,
+      "mae": 7.4677,
+      "r2": 0.8724
     },
     {
       "model": "Ridge Regression",
-      "rmse": 74.0777,
-      "mae": 47.0763,
-      "r2": -4.8223
+      "rmse": 82.9021,
+      "mae": 37.3461,
+      "r2": -6.1855
     }
   ]
 }
