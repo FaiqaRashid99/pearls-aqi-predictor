@@ -269,7 +269,7 @@ Both pipelines add Supabase credentials via GitHub Secrets for secure access.
 
 ## 👩‍💻 Author
 
-**Faiq Rashid**
+**Faiqa Rashid**
 - GitHub: [@FaiqaRashid99](https://github.com/FaiqaRashid99)
 
 ---
