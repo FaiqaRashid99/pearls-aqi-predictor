@@ -273,11 +273,3 @@ Both pipelines add Supabase credentials via GitHub Secrets for secure access.
 - GitHub: [@FaiqaRashid99](https://github.com/FaiqaRashid99)
 
 ---
-
-## 📅 Project Timeline
-
-- **Started:** May 14, 2026
-- **Due:** June 8, 2026
-- **Status:** ✅ Complete and deployed
-
----
