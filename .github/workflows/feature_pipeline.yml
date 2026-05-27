@@ -44,3 +44,29 @@ jobs:
           git commit -m "ci: hourly feature update"
           git pull origin main --strategy-option=theirs
           git push
+
+      # - name: Commit changes
+      #   run: |
+      #     git config --global user.name "github-actions[bot]"
+      #     git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+      #     if [[ -n $(git status --porcelain) ]]; then
+      #       git add feature_store/aqi_features.csv
+      #       git commit -m "ci: hourly feature update"
+      #       echo "CHANGES=true" >> $GITHUB_ENV
+      #     else
+      #       echo "No changes to commit"
+      #       echo "CHANGES=false" >> $GITHUB_ENV
+      #     fi
+
+      # - name: Create Pull Request
+      #   if: env.CHANGES == 'true'
+      #   uses: peter-evans/create-pull-request@v7
+      #   with:
+      #     token: ${{ secrets.GITHUB_TOKEN }}
+      #     commit-message: "ci: hourly feature update"
+      #     title: "ci: hourly feature update"
+      #     body: "Automated hourly AQI feature update from GitHub Actions."
+      #     branch: "automated-feature-update"
+      #     base: "main"
+      #     delete-branch: true

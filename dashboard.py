@@ -585,13 +585,16 @@ def main():
         """)
 
     # ── SIDEBAR ──────────────────────────────
+    
+    training_rows = metadata.get("training_rows", "N/A")
+
     with st.sidebar:
         st.header("ℹ️ About")
         st.markdown(f"""
         **AQI Predictor Dashboard**
         - City: {CITY}
         - Model: {metadata.get('best_model','N/A')}
-        - Training rows: 2,161
+        - Training rows: {training_rows}
         - Updates: Hourly (via GitHub Actions)
         """)
 
