@@ -13,3 +13,5 @@ requests-cache
 retry-requests
 supabase
 xgboost
+tensorflow-cpu
+keras
