@@ -24,13 +24,6 @@ MODEL_DIR     = "models"
 
 LAT, LON = 33.6844, 73.0479
 
-# FEATURE_COLS = [
-#     "temp", "feels_like", "humidity", "pressure",
-#     "wind_speed", "wind_direction",
-#     "precipitation", "weather_code",
-#     "hour", "day", "month", "dayofweek",
-#     "is_weekend", "is_rush_hour", "aqi_change_rate",
-# ]
 FEATURE_COLS = [
     "temp", "feels_like", "humidity", "pressure", "wind_speed", "wind_direction",
     "precipitation", "weather_code",
@@ -44,11 +37,11 @@ FEATURE_COLS = [
 
 # AQI categories
 def aqi_category(aqi):
-    if aqi <= 50:   return "Good",                    "#00e400", "😊"
-    if aqi <= 100:  return "Moderate",                "#ffff00", "😐"
+    if aqi <= 50:   return "Good",                    "#00e400", "🍃"
+    if aqi <= 100:  return "Moderate",                "#ffff00", "🌤️"
     if aqi <= 150:  return "Unhealthy for Sensitive", "#ff7e00", "😷"
     if aqi <= 200:  return "Unhealthy",               "#ff0000", "🤢"
-    if aqi <= 300:  return "Very Unhealthy",          "#8f3f97", "🚨"
+    if aqi <= 300:  return "Very Unhealthy",          "#8f3f97", "⛔"
     return             "Hazardous",                   "#7e0023", "☠️"
 
 # ─────────────────────────────────────────────
@@ -103,15 +96,6 @@ def load_metadata():
         return {}
     with open(path) as f:
         return json.load(f)
-
-# @st.cache_data(ttl=3600)
-# def load_feature_store():
-#     path = os.path.join(FEATURE_STORE, "aqi_features.csv")
-#     if not os.path.exists(path):
-#         return pd.DataFrame()
-#     df = pd.read_csv(path, parse_dates=["timestamp"])
-#     df.sort_values("timestamp", inplace=True)
-#     return df
 
 @st.cache_data(ttl=3600)
 def load_feature_store():
@@ -211,53 +195,6 @@ def load_shap_importance():
         return None
     return pd.read_csv(path, index_col=0)
 
-
-# ─────────────────────────────────────────────
-# PREDICTION
-# ─────────────────────────────────────────────
-# def make_forecast(model, forecast_df: pd.DataFrame, last_aqi: float):
-#     if forecast_df.empty or model is None:
-#         return pd.DataFrame()
-
-#     rows = []
-#     prev_aqi = last_aqi
-
-#     for _, row in forecast_df.iterrows():
-#         ts = row["timestamp"]
-#         features = {
-#             "temp":             row.get("temp", 30),
-#             "feels_like":       row.get("feels_like", 30),
-#             "humidity":         row.get("humidity", 50),
-#             "pressure":         row.get("pressure", 1010),
-#             "wind_speed":       row.get("wind_speed", 3),
-#             "wind_direction":   row.get("wind_direction", 180),
-#             "precipitation":    row.get("precipitation", 0),
-#             "weather_code":     row.get("weather_code", 0),
-#             "hour":             ts.hour,
-#             "day":              ts.day,
-#             "month":            ts.month,
-#             "dayofweek":        ts.weekday(),
-#             "is_weekend":       int(ts.weekday() >= 5),
-#             "is_rush_hour":     int(ts.hour in [7, 8, 9, 17, 18, 19]),
-#             "aqi_change_rate":  0.0,
-#         }
-#         X = pd.DataFrame([features])[FEATURE_COLS]
-#         predicted_aqi = float(model.predict(X)[0])
-#         features["aqi_change_rate"] = predicted_aqi - prev_aqi
-#         prev_aqi = predicted_aqi
-
-#         rows.append({
-#             "timestamp":     ts,
-#             "predicted_aqi": round(predicted_aqi, 1),
-#             "temp":          row.get("temp", 30),
-#             "humidity":      row.get("humidity", 50),
-#             "wind_speed":    row.get("wind_speed", 3),
-#             "precipitation": row.get("precipitation", 0),
-#             "date":          ts.date(),
-#             "hour":          ts.hour,
-#         })
-
-#     return pd.DataFrame(rows)
 
 def make_forecast(model, forecast_df: pd.DataFrame, last_aqi: float):
     if forecast_df.empty or model is None:
@@ -405,19 +342,19 @@ def main():
 
     if weather:
         with col2:
-            st.metric("Temperature", f"{weather['main']['temp']:.1f}°C",
+            st.metric("Temperature 🌡️", f"{weather['main']['temp']:.1f}°C",
                       f"Feels {weather['main']['feels_like']:.1f}°C")
         with col3:
-            st.metric("Humidity", f"{weather['main']['humidity']}%")
+            st.metric("Humidity 🫧", f"{weather['main']['humidity']}%")
         with col4:
-            st.metric("Wind Speed", f"{weather['wind']['speed']} m/s")
+            st.metric("Wind Speed 💨", f"{weather['wind']['speed']} m/s")
         with col5:
-            st.metric("Pressure", f"{weather['main']['pressure']} hPa")
+            st.metric("Pressure 🔽", f"{weather['main']['pressure']} hPa")
 
     st.divider()
 
     # ── 3-DAY FORECAST ───────────────────────
-    st.subheader("📅 3-Day AQI Forecast")
+    st.subheader("🗓️ 3-Day AQI Forecast")
 
     if model is None:
         st.error("Model not found. Run training_pipeline.py first.")
