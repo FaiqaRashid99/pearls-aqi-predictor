@@ -24,10 +24,10 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # 1. FETCH DATA
 # ─────────────────────────────────────────────
 def fetch_aqi() -> dict:
-    """Fetch live AQI and pollutant data from AQICN"""
-    url = f"https://api.waqi.info/feed/{CITY}/?token={AQICN_TOKEN}"
-    r   = requests.get(url, timeout=10).json()
-    if r["status"] != "ok":
+    """Fetch live AQI and pollutant data from AQICN (US Embassy station — only valid Islamabad feed)"""
+    url  = f"https://api.waqi.info/feed/islamabad/?token={AQICN_TOKEN}"
+    r    = requests.get(url, timeout=10).json()
+    if r.get("status") != "ok":
         raise Exception(f"AQICN API error: {r}")
     data = r["data"]
     iaqi = data.get("iaqi", {})
@@ -66,7 +66,9 @@ def fetch_weather() -> dict:
 # ─────────────────────────────────────────────
 def engineer_features(aqi_data: dict, weather_data: dict) -> dict:
     """Combine API data and add time-based engineered features"""
-    now      = datetime.utcnow()
+    from datetime import timezone, timedelta
+    PKT = timezone(timedelta(hours=5))
+    now      = datetime.now(PKT).replace(tzinfo=None)  # PKT, tz-naive
     features = {**aqi_data, **weather_data}
 
     # Time-based features
