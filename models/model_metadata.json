@@ -33,7 +33,7 @@
     "aqi_rolling_96h"
   ],
   "training_rows": 6950,
-  "trained_at": "2026-05-30 22:17:33",
+  "trained_at": "2026-05-31 07:02:42",
   "all_results": [
     {
       "model": "Random Forest",
@@ -55,15 +55,15 @@
     },
     {
       "model": "Huber Regression",
-      "rmse": 18.4088,
-      "mae": 13.2149,
-      "r2": 0.5465
+      "rmse": 18.4076,
+      "mae": 13.2144,
+      "r2": 0.5466
     },
     {
       "model": "Keras Neural Network",
-      "rmse": 18.1287,
-      "mae": 14.2421,
-      "r2": 0.5602
+      "rmse": 18.8508,
+      "mae": 15.667,
+      "r2": 0.5245
     }
   ]
 }
