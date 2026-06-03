@@ -537,17 +537,24 @@ def load_feature_store():
         p = os.path.join(FEATURE_STORE, "aqi_features.csv")
         return pd.read_csv(p, parse_dates=["timestamp"]) if os.path.exists(p) else pd.DataFrame()
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=300)   # 5 min — so AQI feels live, not frozen for 30min
 def fetch_current_aqi():
     try:
         r = requests.get(
-            f"https://api.waqi.info/feed/islamabad/?token={AQICN_TOKEN}", timeout=10).json()
-        if r["status"] == "ok":
-            return r["data"]["aqi"], r["data"].get("iaqi", {})
-    except: pass
-    return None, {}
+            f"https://api.waqi.info/feed/islamabad/?token={AQICN_TOKEN}",
+            timeout=10
+        ).json()
+        if r.get("status") == "ok":
+            data     = r["data"]
+            aqi      = data["aqi"]
+            iaqi     = data.get("iaqi", {})
+            obs_time = data.get("time", {}).get("s", "")  # AQICN observation timestamp
+            return aqi, iaqi, obs_time
+    except Exception as e:
+        st.warning(f"AQI fetch failed: {e}")
+    return None, {}, ""
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=600)   # 10 min for weather
 def fetch_current_weather():
     try:
         r = requests.get(
@@ -557,16 +564,68 @@ def fetch_current_weather():
     except: pass
     return None
 
+def _fetch_forecast_openweather() -> pd.DataFrame:
+    """Fallback forecast using OpenWeatherMap 5-day/3-hour API."""
+    try:
+        r = requests.get(
+            f"https://api.openweathermap.org/data/2.5/forecast"
+            f"?q={CITY}&appid={OW_KEY}&units=metric&cnt=72",
+            timeout=15
+        ).json()
+        if r.get("cod") != "200":
+            return pd.DataFrame()
+        rows = []
+        for item in r["list"]:
+            rows.append({
+                "timestamp":      pd.to_datetime(item["dt_txt"]),
+                "temp":           item["main"]["temp"],
+                "feels_like":     item["main"]["feels_like"],
+                "humidity":       item["main"]["humidity"],
+                "pressure":       item["main"]["pressure"],
+                "wind_speed":     item["wind"]["speed"],
+                "wind_direction": item["wind"].get("deg", 0),
+                "precipitation":  item.get("rain", {}).get("3h", 0.0),
+                "weather_code":   item["weather"][0]["id"],
+            })
+        df = pd.DataFrame(rows)
+        now = pd.Timestamp.now()
+        return df[df["timestamp"] > now].head(72)
+    except Exception as e:
+        st.warning(f"OpenWeatherMap fallback also failed: {e}")
+        return pd.DataFrame()
+
+
 @st.cache_data(ttl=3600)
 def fetch_forecast_weather():
     try:
-        r = requests.get("https://api.open-meteo.com/v1/forecast", params={
+        headers = {"User-Agent": "PearlsAQIPredictor/1.0 (contact@example.com)"}
+        resp = requests.get("https://api.open-meteo.com/v1/forecast", params={
             "latitude": LAT, "longitude": LON,
             "hourly": ["temperature_2m","relative_humidity_2m","apparent_temperature",
                        "precipitation","surface_pressure","wind_speed_10m",
                        "wind_direction_10m","weather_code"],
             "forecast_days": 4, "timezone": "Asia/Karachi"
-        }, timeout=15).json()
+        }, headers=headers, timeout=15)
+
+        if resp.status_code == 403:
+            st.warning("Open-Meteo forecast blocked (403). Using OpenWeatherMap fallback.")
+            return _fetch_forecast_openweather()
+
+        if resp.status_code != 200:
+            st.warning(f"Forecast API returned status {resp.status_code}")
+            return pd.DataFrame()
+
+        r = resp.json()
+
+        # Check for API-level error in the response body
+        if "error" in r:
+            st.warning(f"Forecast API error: {r.get('reason', r)}")
+            return pd.DataFrame()
+
+        if "hourly" not in r:
+            st.warning(f"Forecast API returned unexpected response: {list(r.keys())}")
+            return pd.DataFrame()
+
         df = pd.DataFrame(r["hourly"]).rename(columns={
             "time": "timestamp","temperature_2m": "temp",
             "relative_humidity_2m": "humidity","apparent_temperature": "feels_like",
@@ -675,7 +734,7 @@ def section(title, badge=None):
 # ─────────────────────────────────────────────
 # SIDEBAR
 # ─────────────────────────────────────────────
-def render_sidebar(metadata, current_aqi):
+def render_sidebar(metadata, current_aqi, aqi_obs_time=""):
     with st.sidebar:
         # Brand + theme toggle in same row
         c_brand, c_toggle = st.columns([3, 1])
@@ -693,12 +752,14 @@ def render_sidebar(metadata, current_aqi):
         # Live AQI donut
         if current_aqi:
             cat, color, icon = aqi_category(current_aqi)
+            obs_label = f"<div style='font-size:0.68rem;opacity:0.55;margin-top:4px'>{aqi_obs_time[:16]}</div>" if aqi_obs_time else ""
             st.markdown(
                 f'<div style="background:{color}18;border:1px solid {color}44;'
                 f'border-radius:16px;padding:1rem;margin-bottom:1.25rem;text-align:center">'
                 f'<div class="live-pill" style="color:{color}">'
                 f'<span class="pulse"></span>Live AQI</div>'
                 f'{aqi_donut(current_aqi, size=150)}'
+                f'{obs_label}'
                 f'</div>',
                 unsafe_allow_html=True
             )
@@ -757,13 +818,14 @@ def main():
     hist_df  = load_feature_store()
     shap_imp = load_shap()
 
-    current_aqi, iaqi = fetch_current_aqi()
+    current_aqi, iaqi, aqi_obs_time = fetch_current_aqi()
     weather            = fetch_current_weather()
     forecast_weather   = fetch_forecast_weather()
 
-    render_sidebar(metadata, current_aqi)
+    render_sidebar(metadata, current_aqi, aqi_obs_time)
 
     # ── PAGE HEADER ──────────────────────────
+    obs_label = f" · AQI reading: {aqi_obs_time[:16]}" if aqi_obs_time else ""
     st.markdown(
         f'<div class="ph">'
         f'<div><div class="ph-title">Air Quality Dashboard</div>'
@@ -771,7 +833,7 @@ def main():
         f'<div class="ph-meta">'
         f'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;'
         f'background:#22c55e;margin-right:5px;animation:blink 2s infinite;vertical-align:middle"></span>'
-        f'Updated {datetime.now().strftime("%H:%M")} · {metadata.get("best_model","XGBoost")}'
+        f'Dashboard refreshed {datetime.now().strftime("%H:%M")}{obs_label} · {metadata.get("best_model","XGBoost")}'
         f'</div></div>',
         unsafe_allow_html=True
     )
@@ -865,7 +927,11 @@ def main():
         st.error("Model not found — run `training_pipeline.py` first.")
         return
 
-    forecast_df = make_forecast(model, forecast_weather, current_aqi or 150)
+        # Use last stored AQI from feature store if live fetch returned None
+    _fallback_aqi = current_aqi
+    if _fallback_aqi is None and not hist_df.empty and "aqi" in hist_df.columns:
+        _fallback_aqi = float(hist_df["aqi"].iloc[-1])
+    forecast_df = make_forecast(model, forecast_weather, _fallback_aqi or 100)
 
     if not forecast_df.empty:
         days = sorted(forecast_df["date"].unique())[:3]
