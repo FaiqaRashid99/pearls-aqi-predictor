@@ -501,37 +501,6 @@ streamlit run dashboard.py
 
 ---
 
-## 📁 Project Structure
-
-```
-pearls-aqi-predictor/
-├── .github/
-│   └── workflows/
-│       ├── feature_pipeline.yml     ← Runs every hour
-│       └── training_pipeline.yml   ← Runs every day
-├── feature_store/
-│   └── aqi_features.csv            ← Local CSV backup
-├── models/
-│   ├── best_model.pkl              ← Trained XGBoost model
-│   ├── keras_model.keras           ← Trained Neural Network
-│   ├── keras_imputer.pkl           ← Keras preprocessor
-│   ├── keras_scaler.pkl            ← Keras scaler
-│   ├── model_metadata.json         ← Model metrics + feature list
-│   └── shap_importance.csv         ← SHAP feature values
-├── feature_pipeline.py             ← Hourly live data collection
-├── backfill.py                     ← Historical data (Open-Meteo)
-├── backfill_openaq.py              ← Real PM2.5 backfill (OpenAQ)
-├── preprocessing.py                ← Feature engineering + cleaning
-├── training_pipeline.py            ← Model training (5 models)
-├── dashboard.py                    ← Streamlit web application
-├── find_sensors.py                 ← OpenAQ sensor discovery
-├── requirements.txt                ← Dependencies
-├── requirements_ci.txt             ← CI/CD dependencies
-└── .env                            ← API keys (not committed)
-```
-
----
-
 ## 🌍 APIs Used
 
 | API | Purpose | Cost |
