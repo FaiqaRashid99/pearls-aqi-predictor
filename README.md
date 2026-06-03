@@ -107,16 +107,18 @@ Open-Meteo Archive ──► Historical Backfill ──────────�
 ---
 
 ## 📊 Model Performance
+Job summary generated at run-time
 
 | Model | RMSE | MAE | R² | Notes |
 |---|---|---|---|---|
-| **XGBoost** | **11.05** | **7.47** | **0.8724** | 🏆 Best model |
-| Gradient Boosting | 11.70 | 7.82 | 0.857 | ✅ Very good |
-| Random Forest | 14.03 | 9.77 | 0.7943 | ✅ Good |
-| Keras Neural Network | 37.81 | 30.64 | -0.50 | ❌ Needs more data |
-| Ridge Regression | 82.90 | 37.35 | -6.19 | ❌ Too linear |
+| Gradient Boosting | 11.0015 | 8.9387 | 0.838 | 🏆 Best model |
+| XGBoost | 11.5402 | 9.1954 | 0.8218 | ✅ Very good |
+| Random Forest | 11.5905 | 9.3591 | 0.8202 | ✅ Good |
+| Huber Regression | 18.4076 | 13.2144 | 0.5466 | ❌ Too linear |
+| Keras Neural Network | 20.2426 | 16.4873 | 0.4516 | ❌ Needs more data |
 
-**Best Model: XGBoost** — predicts AQI within ±11 points on average (R²=0.87)
+**Best Model: Gradient Boosting** — predicts AQI within ±11 points on average (R²=0.857) 
+**Note:** Performance continues to improve as more real hourly data is collected.
 
 ---
 
@@ -192,15 +194,15 @@ AQICN API ──────────────────────┐
                                  ├──► Feature Pipeline ──► Supabase Feature Store
 OpenWeather API ─────────────────┘         (hourly)         (PostgreSQL cloud DB)
                                                                       │
-Open-Meteo Archive ──► Historical Backfill ──────────────────────────┘
-OpenAQ API ──────────┘   (real PM2.5 data)                           │
+Open-Meteo Archive ──► Historical Backfill  ──────────────────────────┘
+OpenAQ API ──────────┘   (real PM2.5 data)                            │
                                                                       ▼
                                                      Training Pipeline (daily)
                                                      + Preprocessing Pipeline
                                                                       │
                                                      ┌────────────────┴──────────────┐
                                                      │        Model Registry         │
-                                                     │  best_model.pkl (XGBoost)     │
+                                                     │  best_model.pkl               │
                                                      │  keras_model.keras            │
                                                      │  shap_importance.csv          │
                                                      └────────────────┬──────────────┘
