@@ -711,16 +711,16 @@ def make_forecast(model, forecast_df, last_aqi):
                 if hasattr(ts, "tzinfo") and ts.tzinfo else pd.Timestamp(ts))
         month, hour = ts_n.month, ts_n.hour
 
-        def get_lag(h):
-            lt = ts_n - pd.Timedelta(hours=h)
+        def get_lag(h, _ts=ts_n):   # default arg binds ts_n NOW, not at call time
+            lt = _ts - pd.Timedelta(hours=h)
             if not hist_df.empty:
                 past = hist_df[hist_df["timestamp"] <= lt]
                 if not past.empty: return past["aqi"].iloc[-1]
             return last_aqi
 
-        def get_roll(h):
-            et  = ts_n - pd.Timedelta(hours=1)
-            st2 = ts_n - pd.Timedelta(hours=h)
+        def get_roll(h, _ts=ts_n):   # same closure fix
+            et  = _ts - pd.Timedelta(hours=1)
+            st2 = _ts - pd.Timedelta(hours=h)
             if not hist_df.empty:
                 w = hist_df[(hist_df["timestamp"] >= st2) & (hist_df["timestamp"] <= et)]
                 if not w.empty: return w["aqi"].mean()
@@ -745,7 +745,12 @@ def make_forecast(model, forecast_df, last_aqi):
             "aqi_lag_72h": get_lag(72), "aqi_lag_96h": get_lag(96),
             "aqi_rolling_72h": get_roll(72), "aqi_rolling_96h": get_roll(96),
         }
-        pred = max(0, round(float(model.predict(pd.DataFrame([feats])[FEATURE_COLS])[0]), 1))
+        raw_pred = float(model.predict(pd.DataFrame([feats])[FEATURE_COLS])[0])
+        # Clamp prediction within ±60 of current AQI — prevents unrealistic swings
+        # from synthetic training data. Remove once model is retrained on real sensor data.
+        pred = max(0, min(500, round(
+            np.clip(raw_pred, last_aqi * 0.45, last_aqi * 1.55), 1
+        )))
         rows.append({"timestamp": ts_n, "predicted_aqi": pred, "temp": temp,
                      "humidity": hum, "wind_speed": ws,
                      "precipitation": row.get("precipitation", 0),
