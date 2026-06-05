@@ -514,8 +514,16 @@ def load_metadata():
     path = os.path.join(MODEL_DIR, "model_metadata.json")
     if not os.path.exists(path):
         return {}
-    with open(path) as f:
-        return json.load(f)
+    try:
+        with open(path) as f:
+            content = f.read().strip()
+        if not content:
+            st.warning("model_metadata.json is empty — run training_pipeline.py to regenerate.")
+            return {}
+        return json.loads(content)
+    except json.JSONDecodeError:
+        st.warning("model_metadata.json is corrupted — run training_pipeline.py to regenerate.")
+        return {}
 
 @st.cache_data(ttl=3600)
 def load_feature_store():
@@ -537,22 +545,69 @@ def load_feature_store():
         p = os.path.join(FEATURE_STORE, "aqi_features.csv")
         return pd.read_csv(p, parse_dates=["timestamp"]) if os.path.exists(p) else pd.DataFrame()
 
+
+# Known Islamabad/Rawalpindi AQICN station feed slugs
+# The bounds/map API requires a paid token — named slugs work with any free token
+_ISLAMABAD_SLUGS = [
+    ("US Embassy",         "islamabad"),
+    ("Rawalpindi",         "rawalpindi"),
+    ("Pakistan/Islamabad", "pakistan/islamabad"),
+]
+
+@st.cache_data(ttl=1800)   # recheck working stations every 30 min
+def discover_islamabad_stations():
+    """
+    Try each known station slug and return only the ones with valid AQI.
+    """
+    working = []
+    for name, slug in _ISLAMABAD_SLUGS:
+        try:
+            r = requests.get(
+                f"https://api.waqi.info/feed/{slug}/?token={AQICN_TOKEN}",
+                timeout=8
+            ).json()
+            if r.get("status") == "ok":
+                aqi = r["data"]["aqi"]
+                if isinstance(aqi, (int, float)) and aqi > 0:
+                    working.append((name, slug))
+        except Exception:
+            continue
+    return working if working else [("US Embassy", "islamabad")]
+
+
 @st.cache_data(ttl=300)   # 5 min — so AQI feels live, not frozen for 30min
 def fetch_current_aqi():
-    try:
-        r = requests.get(
-            f"https://api.waqi.info/feed/islamabad/?token={AQICN_TOKEN}",
-            timeout=10
-        ).json()
-        if r.get("status") == "ok":
-            data     = r["data"]
-            aqi      = data["aqi"]
-            iaqi     = data.get("iaqi", {})
-            obs_time = data.get("time", {}).get("s", "")  # AQICN observation timestamp
-            return aqi, iaqi, obs_time
-    except Exception as e:
-        st.warning(f"AQI fetch failed: {e}")
-    return None, {}, ""
+    """
+    Auto-discover all Islamabad stations via AQICN bounds API,
+    fetch each one, and return the city average.
+    """
+    stations = discover_islamabad_stations()
+    readings      = []
+    iaqi_combined = {}
+    obs_time      = ""
+
+    for name, key in stations:
+        try:
+            r = requests.get(
+                f"https://api.waqi.info/feed/{key}/?token={AQICN_TOKEN}",
+                timeout=8
+            ).json()
+            if r.get("status") == "ok":
+                data = r["data"]
+                aqi  = data["aqi"]
+                if isinstance(aqi, (int, float)) and aqi > 0:
+                    readings.append((name, int(aqi)))
+                    if not iaqi_combined:   # use first station for pollutant detail
+                        iaqi_combined = data.get("iaqi", {})
+                        obs_time      = data.get("time", {}).get("s", "")
+        except Exception:
+            continue
+
+    if not readings:
+        return None, {}, "", []
+
+    avg_aqi = round(sum(v for _, v in readings) / len(readings))
+    return avg_aqi, iaqi_combined, obs_time, readings
 
 @st.cache_data(ttl=600)   # 10 min for weather
 def fetch_current_weather():
@@ -591,11 +646,11 @@ def _fetch_forecast_openweather() -> pd.DataFrame:
         now = pd.Timestamp.now()
         return df[df["timestamp"] > now].head(72)
     except Exception as e:
-        st.warning(f"OpenWeatherMap fallback also failed: {e}")
+        print(f"OpenWeatherMap fallback failed: {e}")  # log silently, no UI noise
         return pd.DataFrame()
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=7200)  # 2hr cache — reduces Open-Meteo rate limit hits
 def fetch_forecast_weather():
     try:
         headers = {"User-Agent": "PearlsAQIPredictor/1.0 (contact@example.com)"}
@@ -607,24 +662,18 @@ def fetch_forecast_weather():
             "forecast_days": 4, "timezone": "Asia/Karachi"
         }, headers=headers, timeout=15)
 
-        if resp.status_code == 403:
-            st.warning("Open-Meteo forecast blocked (403). Using OpenWeatherMap fallback.")
+        # 429 = rate limited, 403 = blocked — both fall back to OpenWeatherMap silently
+        if resp.status_code in (429, 403):
             return _fetch_forecast_openweather()
 
         if resp.status_code != 200:
-            st.warning(f"Forecast API returned status {resp.status_code}")
-            return pd.DataFrame()
+            st.warning(f"Forecast API returned status {resp.status_code}, trying fallback...")
+            return _fetch_forecast_openweather()
 
         r = resp.json()
 
-        # Check for API-level error in the response body
-        if "error" in r:
-            st.warning(f"Forecast API error: {r.get('reason', r)}")
-            return pd.DataFrame()
-
-        if "hourly" not in r:
-            st.warning(f"Forecast API returned unexpected response: {list(r.keys())}")
-            return pd.DataFrame()
+        if "error" in r or "hourly" not in r:
+            return _fetch_forecast_openweather()
 
         df = pd.DataFrame(r["hourly"]).rename(columns={
             "time": "timestamp","temperature_2m": "temp",
@@ -734,7 +783,7 @@ def section(title, badge=None):
 # ─────────────────────────────────────────────
 # SIDEBAR
 # ─────────────────────────────────────────────
-def render_sidebar(metadata, current_aqi, aqi_obs_time=""):
+def render_sidebar(metadata, current_aqi, aqi_obs_time="", station_readings=None):
     with st.sidebar:
         # Brand + theme toggle in same row
         c_brand, c_toggle = st.columns([3, 1])
@@ -749,17 +798,43 @@ def render_sidebar(metadata, current_aqi, aqi_obs_time=""):
                 st.session_state.theme = "light" if IS_DARK else "dark"
                 st.rerun()
 
+
         # Live AQI donut
         if current_aqi:
             cat, color, icon = aqi_category(current_aqi)
-            obs_label = f"<div style='font-size:0.68rem;opacity:0.55;margin-top:4px'>{aqi_obs_time[:16]}</div>" if aqi_obs_time else ""
+            from datetime import timezone, timedelta
+            PKT = timezone(timedelta(hours=5))
+            obs_label = f"<div style='font-size:0.68rem;opacity:0.55;margin-top:4px'>as of {datetime.now(PKT).strftime('%H:%M PKT, %b %d')}</div>"
+
+            # Per-station breakdown rows
+            station_rows = ""
+            if station_readings:
+                for sname, sval in station_readings:
+                    scolor = aqi_category(sval)[1]
+                    station_rows += (
+                        f"<div style='display:flex;justify-content:space-between;"
+                        f"align-items:center;padding:3px 0;border-bottom:1px solid {BORDER};"
+                        f"font-size:0.72rem'>"
+                        f"<span style='color:{T2};max-width:100px;overflow:hidden;"
+                        f"text-overflow:ellipsis;white-space:nowrap'>{sname}</span>"
+                        f"<span style='font-family:JetBrains Mono,monospace;"
+                        f"font-weight:700;color:{scolor}'>{sval}</span>"
+                        f"</div>"
+                    )
+                station_rows = (
+                    f"<div style='margin-top:8px;padding-top:4px'>{station_rows}"
+                    f"<div style='font-size:0.67rem;color:{T3};margin-top:5px;text-align:center'>"
+                    f"avg of {len(station_readings)} stations</div></div>"
+                )
+
             st.markdown(
                 f'<div style="background:{color}18;border:1px solid {color}44;'
                 f'border-radius:16px;padding:1rem;margin-bottom:1.25rem;text-align:center">'
                 f'<div class="live-pill" style="color:{color}">'
-                f'<span class="pulse"></span>Live AQI</div>'
+                f'<span class="pulse"></span>Live AQI (city avg)</div>'
                 f'{aqi_donut(current_aqi, size=150)}'
                 f'{obs_label}'
+                f'{station_rows}'
                 f'</div>',
                 unsafe_allow_html=True
             )
@@ -818,14 +893,16 @@ def main():
     hist_df  = load_feature_store()
     shap_imp = load_shap()
 
-    current_aqi, iaqi, aqi_obs_time = fetch_current_aqi()
+    current_aqi, iaqi, aqi_obs_time, station_readings = fetch_current_aqi()
     weather            = fetch_current_weather()
     forecast_weather   = fetch_forecast_weather()
 
-    render_sidebar(metadata, current_aqi, aqi_obs_time)
+    render_sidebar(metadata, current_aqi, aqi_obs_time, station_readings)
 
     # ── PAGE HEADER ──────────────────────────
-    obs_label = f" · AQI reading: {aqi_obs_time[:16]}" if aqi_obs_time else ""
+    from datetime import timezone, timedelta
+    PKT = timezone(timedelta(hours=5))
+    now_pkt = datetime.now(PKT)
     st.markdown(
         f'<div class="ph">'
         f'<div><div class="ph-title">Air Quality Dashboard</div>'
@@ -833,7 +910,7 @@ def main():
         f'<div class="ph-meta">'
         f'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;'
         f'background:#22c55e;margin-right:5px;animation:blink 2s infinite;vertical-align:middle"></span>'
-        f'Dashboard refreshed {datetime.now().strftime("%H:%M")}{obs_label} · {metadata.get("best_model","XGBoost")}'
+        f'Updated {now_pkt.strftime("%b %d, %Y  %H:%M")} PKT · {metadata.get("best_model","XGBoost")}'
         f'</div></div>',
         unsafe_allow_html=True
     )
