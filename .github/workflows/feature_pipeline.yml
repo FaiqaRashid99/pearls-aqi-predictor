@@ -42,7 +42,7 @@ jobs:
           git add feature_store/
           git diff --staged --quiet && echo "No changes" && exit 0
           git commit -m "ci: hourly feature update"
-          git pull origin main --strategy-option=theirs
+          git pull origin main --rebase --strategy-option=theirs
           git push
 
       # - name: Commit changes
