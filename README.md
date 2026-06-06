@@ -13,27 +13,27 @@ This project predicts the Air Quality Index (AQI) for Islamabad, Pakistan for th
 
 ---
 
-## 🏗️ System Architecture
+## 🛰️ System Architecture
 
 ```
-AQICN API ──────────────────────┐
-                                 ├──► Feature Pipeline ──► Supabase Feature Store
-OpenWeather API ─────────────────┘         (hourly)         (PostgreSQL cloud DB)
-                                                                      │
-Open-Meteo Archive ──► Historical Backfill ──────────────────────────┘
-    (real weather)          (90 days)                                 │
-                                                                      ▼
-                                                     Training Pipeline (daily)
-                                                     + Preprocessing Pipeline
-                                                                      │
-                                                     ┌────────────────┴──────────────┐
-                                                     │        Model Registry         │
-                                                     │  best_model.pkl (XGBoost)     │
-                                                     │  keras_model.keras            │
-                                                     └────────────────┬──────────────┘
-                                                                      │
-                                                          Streamlit Dashboard
-                                                         (3-day AQI Forecast)
+OpenWeatherMap Air Pollution API ───┐
+                                     ├──► Feature Pipeline ──► Supabase Feature Store
+OpenWeatherMap Weather API ──────────┘         (hourly)         (PostgreSQL cloud DB)
+                                                                        │
+Open-Meteo Archive ──► Historical Backfill ────────────────────────────┘
+    (real weather)          (1 year)                                    │
+                                                                        ▼
+                                                       Training Pipeline (daily)
+                                                       + Preprocessing Pipeline
+                                                                        │
+                                                       ┌────────────────┴──────────────┐
+                                                       │        Model Registry         │
+                                                       │  best_model.pkl               │
+                                                       │  keras_model.keras            │
+                                                       └────────────────┬──────────────┘
+                                                                        │
+                                                            Streamlit Dashboard
+                                                           (3-day AQI Forecast)
 ```
 
 ---
@@ -42,33 +42,34 @@ Open-Meteo Archive ──► Historical Backfill ──────────�
 
 | Component | Technology |
 |---|---|
-| Language | Python 3.13 |
+| Language | Python 3.11 |
 | ML Models | Scikit-learn, XGBoost, Keras |
 | Feature Store | Supabase (PostgreSQL cloud database) |
 | CI/CD | GitHub Actions (hourly + daily) |
 | Dashboard | Streamlit + Plotly |
-| APIs | AQICN, OpenWeatherMap, Open-Meteo, OpenAQ |
+| APIs | OpenWeatherMap (Air Pollution + Weather), Open-Meteo, OpenAQ |
 | Explainability | SHAP (SHapley Additive exPlanations) |
 | Version Control | Git + GitHub |
 | Preprocessing | KNN Imputation, RobustScaler, Cyclical Encoding |
 
 ---
 
-## 🔑 Key Features
+## ⚡ Key Features
 
 ### 1. Feature Pipeline (Hourly — Automated)
-- Fetches live AQI and pollutant data from AQICN API
-- Fetches weather data from OpenWeatherMap API
+- Fetches live PM2.5 and pollutant data from **OpenWeatherMap Air Pollution API**
+- Converts PM2.5 → AQI using the **US EPA standard formula**
+- Fetches live weather data from OpenWeatherMap Current Weather API
 - Engineers time-based features (hour, day, month, rush hour, weekend)
 - Computes derived features (AQI change rate)
 - Stores to **Supabase cloud PostgreSQL database** + local CSV backup
 - Runs automatically **every hour** via GitHub Actions
 
 ### 2. Historical Backfill
-- Fetches 90 days of **real hourly weather** from Open-Meteo archive
-- Estimates historical AQI using seasonal and meteorological patterns
-- Generated 2,200+ training rows for model training
-- Investigated OpenAQ API for real PM2.5 data (5,751 readings available from Islamabad sensors)
+- Fetches 1 year of **real hourly weather** from Open-Meteo archive
+- Real PM2.5 data from **OpenAQ sensors** (Rawalpindi/Islamabad area)
+- Converts real PM2.5 readings → AQI using US EPA formula
+- 8,900+ training rows stored in Supabase
 
 ### 3. Advanced Preprocessing Pipeline (`preprocessing.py`)
 - **Outlier removal** using IQR method on AQI, PM2.5, PM10
@@ -82,19 +83,20 @@ Open-Meteo Archive ──► Historical Backfill ──────────�
 ### 4. Training Pipeline (Daily — Automated)
 - Loads all features from **Supabase** feature store
 - Applies strict preprocessing pipeline
-- Trains **5 models**: XGBoost, Gradient Boosting, Random Forest, Ridge Regression, Keras Neural Network
+- Trains **5 models**: XGBoost, Gradient Boosting, Random Forest, Huber Regression, Keras Neural Network
 - Evaluates using RMSE, MAE, and R² metrics
 - Computes **SHAP feature importance**
 - Saves best model automatically and commits to GitHub
 - Runs **daily at 3am UTC** via GitHub Actions
 
 ### 5. Web Dashboard
-- Live current AQI with color-coded health category
+- Live current AQI with color-coded health category (updates every 5 minutes)
 - ⚠️ **Hazard alerts** when AQI exceeds 150
 - **3-day hourly AQI forecast** using lag and rolling features
 - Historical trend charts (daily, hourly, monthly)
 - SHAP feature importance visualization
 - Model performance comparison (all 5 models)
+- Light/Dark theme toggle
 - **Refresh Data** button for manual cache clearing
 
 ### 6. CI/CD Automation
@@ -108,15 +110,17 @@ Open-Meteo Archive ──► Historical Backfill ──────────�
 
 ## 📊 Model Performance
 
+> ⚠️ **Note:** Results below reflect the current trained model. Since the feature store grows every hour and the model retrains daily, these metrics will keep evolving as more real data accumulates. Check the live dashboard's Model Comparison section for the latest results.
+
 | Model | RMSE | MAE | R² | Notes |
 |---|---|---|---|---|
-| **XGBoost** | **11.05** | **7.47** | **0.8724** | 🏆 Best model |
-| Gradient Boosting | 11.70 | 7.82 | 0.857 | ✅ Very good |
-| Random Forest | 14.03 | 9.77 | 0.7943 | ✅ Good |
-| Keras Neural Network | 37.81 | 30.64 | -0.50 | ❌ Needs more data |
-| Ridge Regression | 82.90 | 37.35 | -6.19 | ❌ Too linear |
+| **Gradient Boosting** | **11.24** | **9.13** | **0.8314** | 🏆 Best model |
+| XGBoost | 11.51 | 9.18 | 0.8230 | ✅ Very good |
+| Random Forest | 11.60 | 9.36 | 0.8203 | ✅ Good |
+| Keras Neural Network | 13.67 | 10.48 | 0.7506 | ✅ Improving with more data |
+| Huber Regression | 18.73 | 13.28 | 0.5315 | ⚠️ Linear baseline |
 
-**Best Model: XGBoost** — predicts AQI within ±11 points on average (R²=0.87)
+**Best Model: Gradient Boosting** — predicts AQI within ±11 points on average (R²=0.83)
 
 ---
 
@@ -124,21 +128,21 @@ Open-Meteo Archive ──► Historical Backfill ──────────�
 
 Top factors driving AQI predictions in Islamabad:
 
-| Rank | Feature | Importance | Interpretation |
-|---|---|---|---|
-| 1 | 🌬️ wind_speed | 23.7 | Stronger winds disperse pollutants |
-| 2 | 📅 month_cos | 7.2 | Seasonal smog cycles |
-| 3 | 🚗 is_rush_hour | 5.5 | Traffic emissions spike AQI |
-| 4 | 💧 humidity | 2.9 | High humidity traps particles |
-| 5 | 🕐 hour_cos | 1.5 | Daily pollution cycle |
-| 6 | 🌧️ precipitation | 2.3 | Rain cleans the air |
-| 7 | 📊 aqi_rolling_72h | 1.7 | 3-day historical trend |
+| Rank | Feature | Interpretation |
+|---|---|---|
+| 1 | 🌬️ wind_speed | Stronger winds disperse pollutants |
+| 2 | 📅 month_cos | Seasonal smog cycles (winter worst) |
+| 3 | 🚗 is_rush_hour | Traffic emissions spike AQI |
+| 4 | 💧 humidity | High humidity traps particles |
+| 5 | 🕐 hour_cos | Daily pollution cycle |
+| 6 | 🌧️ precipitation | Rain cleans the air |
+| 7 | 📊 aqi_rolling_72h | 3-day historical trend |
 
 ---
 
 ## 🗄️ Feature Store (Supabase PostgreSQL)
 
-**2,200+ rows** stored in Supabase cloud database, growing hourly:
+**8,900+ rows** stored in Supabase cloud database, growing hourly:
 
 | Feature Category | Features |
 |---|---|
@@ -178,7 +182,6 @@ pip install -r requirements.txt
 ### 4. Set up environment variables
 Create a `.env` file:
 ```
-AQICN_TOKEN=your_aqicn_token
 OPENWEATHER_KEY=your_openweather_key
 SUPABASE_URL=your_supabase_url
 SUPABASE_KEY=your_supabase_anon_key
@@ -211,15 +214,15 @@ pearls-aqi-predictor/
 ├── feature_store/
 │   └── aqi_features.csv            ← Local CSV backup
 ├── models/
-│   ├── best_model.pkl              ← Trained XGBoost model
+│   ├── best_model.pkl              ← Trained best model
 │   ├── keras_model.keras           ← Trained Neural Network
 │   ├── keras_imputer.pkl           ← Keras preprocessor
 │   ├── keras_scaler.pkl            ← Keras scaler
 │   ├── model_metadata.json         ← Model metrics + feature list
 │   └── shap_importance.csv         ← SHAP feature values
 ├── feature_pipeline.py             ← Hourly live data collection
-├── backfill.py                     ← Historical data (Open-Meteo)
-├── backfill_openaq.py              ← Real PM2.5 backfill (OpenAQ)
+├── backfill_up.py                  ← Real PM2.5 backfill (OpenAQ)
+├── backfill_up3.py                 ← Historical data (Open-Meteo)
 ├── preprocessing.py                ← Feature engineering + cleaning
 ├── training_pipeline.py            ← Model training (5 models)
 ├── dashboard.py                    ← Streamlit web application
@@ -235,9 +238,9 @@ pearls-aqi-predictor/
 
 | API | Purpose | Cost |
 |---|---|---|
-| [AQICN](https://aqicn.org/api/) | Real-time AQI & pollutants (hourly) | Free |
-| [OpenWeatherMap](https://openweathermap.org/api) | Live weather data (hourly) | Free tier |
-| [Open-Meteo](https://open-meteo.com/) | Historical weather archive | Free |
+| [OpenWeatherMap Air Pollution](https://openweathermap.org/api/air-pollution) | Real-time PM2.5 → AQI (primary source) | Free tier |
+| [OpenWeatherMap Weather](https://openweathermap.org/api) | Live + forecast weather | Free tier |
+| [Open-Meteo](https://open-meteo.com/) | Historical weather archive + forecast fallback | Free |
 | [OpenAQ](https://openaq.org/) | Real historical PM2.5 measurements | Free |
 | [Supabase](https://supabase.com/) | Cloud feature store (PostgreSQL) | Free tier |
 
@@ -247,23 +250,23 @@ pearls-aqi-predictor/
 
 | Data | Source | Real? |
 |---|---|---|
-| Live AQI (May 15, 2026 onwards) | AQICN API | ✅ 100% Real |
-| Live weather (May 15, 2026 onwards) | OpenWeatherMap | ✅ 100% Real |
-| Historical weather (Feb–May 2026) | Open-Meteo archive | ✅ 100% Real |
-| Historical AQI (backfill) | Estimated from real weather patterns | ⚠️ Estimated |
+| Live AQI (Jun 2026 onwards) | OpenWeatherMap Air Pollution API → EPA formula | ✅ 100% Real |
+| Live weather (Jun 2026 onwards) | OpenWeatherMap Current Weather | ✅ 100% Real |
+| Historical weather (May 2025–Jun 2026) | Open-Meteo archive | ✅ 100% Real |
+| Historical AQI (May 2025–Jun 2026) | OpenAQ real PM2.5 sensors → EPA formula | ✅ Real measured data |
 
-> Historical AQI values were estimated using real meteorological data and seasonal adjustment factors based on published research on South Asian air quality. Real-time AQICN data collection has been operational since May 15, 2026 and grows hourly.
+> **Previous AQICN dependency removed:** The AQICN US Embassy station was discovered to have stopped reporting in February 2026 while silently returning stale cached data (AQI=154). All AQI data collection now uses OpenWeatherMap Air Pollution API with PM2.5→AQI conversion via the US EPA formula, ensuring real-time accuracy.
 
 ---
 
 ## 🤖 GitHub Actions CI/CD
 
 ```yaml
-Feature Pipeline:  runs every hour  → fetches live data → stores to Supabase
-Training Pipeline: runs every day   → trains 5 models   → commits best model
+Feature Pipeline:  runs every hour  → fetches live PM2.5 + weather → stores to Supabase
+Training Pipeline: runs every day   → trains 5 models              → commits best model
 ```
 
-Both pipelines add Supabase credentials via GitHub Secrets for secure access.
+Both pipelines use Supabase and OpenWeatherMap credentials via GitHub Secrets for secure access. No AQICN token required.
 
 ---
 
