@@ -575,39 +575,84 @@ def discover_islamabad_stations():
     return working if working else [("US Embassy", "islamabad")]
 
 
-@st.cache_data(ttl=300)   # 5 min — so AQI feels live, not frozen for 30min
+def pm25_to_aqi(pm25: float) -> int:
+    """US EPA formula"""
+    breakpoints = [
+        (0.0,   12.0,   0,   50),
+        (12.1,  35.4,  51,  100),
+        (35.5,  55.4, 101,  150),
+        (55.5, 150.4, 151,  200),
+        (150.5, 250.4, 201, 300),
+        (250.5, 350.4, 301, 400),
+        (350.5, 500.4, 401, 500),
+    ]
+    for c_low, c_high, i_low, i_high in breakpoints:
+        if c_low <= pm25 <= c_high:
+            return round(((i_high - i_low) / (c_high - c_low)) * (pm25 - c_low) + i_low)
+    return 500
+
+
+@st.cache_data(ttl=300)
 def fetch_current_aqi():
     """
-    Auto-discover all Islamabad stations via AQICN bounds API,
-    fetch each one, and return the city average.
+    Primary:  OpenWeatherMap Air Pollution API (real-time, you already have the key)
+    Fallback: Latest row from Supabase feature store
     """
-    stations = discover_islamabad_stations()
-    readings      = []
-    iaqi_combined = {}
-    obs_time      = ""
+    # ── PRIMARY: OpenWeatherMap Air Pollution ──────────────────────────────
+    try:
+        r = requests.get(
+            "https://api.openweathermap.org/data/2.5/air_pollution",
+            params={"lat": LAT, "lon": LON, "appid": OW_KEY},
+            timeout=10
+        ).json()
 
-    for name, key in stations:
-        try:
-            r = requests.get(
-                f"https://api.waqi.info/feed/{key}/?token={AQICN_TOKEN}",
-                timeout=8
-            ).json()
-            if r.get("status") == "ok":
-                data = r["data"]
-                aqi  = data["aqi"]
-                if isinstance(aqi, (int, float)) and aqi > 0:
-                    readings.append((name, int(aqi)))
-                    if not iaqi_combined:   # use first station for pollutant detail
-                        iaqi_combined = data.get("iaqi", {})
-                        obs_time      = data.get("time", {}).get("s", "")
-        except Exception:
-            continue
+        components = r["list"][0]["components"]
+        pm25       = components.get("pm2_5", 0)
+        pm10       = components.get("pm10",  0)
+        no2        = components.get("no2",   0)
+        o3         = components.get("o3",    0)
+        co         = components.get("co",    0)
+        so2        = components.get("so2",   0)
 
-    if not readings:
-        return None, {}, "", []
+        aqi = pm25_to_aqi(pm25)
 
-    avg_aqi = round(sum(v for _, v in readings) / len(readings))
-    return avg_aqi, iaqi_combined, obs_time, readings
+        iaqi = {
+            "pm25": {"v": round(pm25, 1)},
+            "pm10": {"v": round(pm10, 1)},
+            "no2":  {"v": round(no2,  1)},
+            "o3":   {"v": round(o3,   1)},
+            "co":   {"v": round(co,   1)},
+            "so2":  {"v": round(so2,  1)},
+        }
+
+        obs_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        readings = [("OpenWeatherMap (live)", aqi)]
+
+        return aqi, iaqi, obs_time, readings
+
+    except Exception as e:
+        print(f"OpenWeatherMap air pollution failed: {e}")
+
+    # ── FALLBACK: Latest Supabase row ──────────────────────────────────────
+    try:
+        sb  = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+        res = (sb.table("aqi_features")
+                 .select("aqi, pm25, timestamp")
+                 .order("timestamp", desc=True)
+                 .limit(1)
+                 .execute())
+        if res.data:
+            row        = res.data[0]
+            aqi        = round(row["aqi"])
+            obs_time   = row["timestamp"]
+            pm25       = row.get("pm25", 0) or 0
+            iaqi       = {"pm25": {"v": round(pm25, 1)}}
+            readings   = [(f"Feature Store ({obs_time[:16]})", aqi)]
+            return aqi, iaqi, obs_time, readings
+    except Exception as e:
+        print(f"Supabase fallback failed: {e}")
+
+    return None, {}, "", []
 
 @st.cache_data(ttl=600)   # 10 min for weather
 def fetch_current_weather():
