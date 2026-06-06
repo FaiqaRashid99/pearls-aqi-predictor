@@ -16,12 +16,12 @@ This project predicts the Air Quality Index (AQI) for Islamabad, Pakistan for th
 ## 🛰️ System Architecture
 
 ```
-OpenWeatherMap Air Pollution API ───┐
+OpenWeatherMap Air Pollution API  ───┐
                                      ├──► Feature Pipeline ──► Supabase Feature Store
 OpenWeatherMap Weather API ──────────┘         (hourly)         (PostgreSQL cloud DB)
                                                                         │
-Open-Meteo Archive ──► Historical Backfill ────────────────────────────┘
-    (real weather)          (1 year)                                    │
+Open-Meteo Archive ──► Historical Backfill  ────────────────────────────┘
+    (real weather)                                                      │
                                                                         ▼
                                                        Training Pipeline (daily)
                                                        + Preprocessing Pipeline
@@ -42,7 +42,7 @@ Open-Meteo Archive ──► Historical Backfill ──────────�
 
 | Component | Technology |
 |---|---|
-| Language | Python 3.11 |
+| Language | Python 3.13 |
 | ML Models | Scikit-learn, XGBoost, Keras |
 | Feature Store | Supabase (PostgreSQL cloud database) |
 | CI/CD | GitHub Actions (hourly + daily) |
@@ -114,11 +114,11 @@ Open-Meteo Archive ──► Historical Backfill ──────────�
 
 | Model | RMSE | MAE | R² | Notes |
 |---|---|---|---|---|
-| **Gradient Boosting** | **11.24** | **9.13** | **0.8314** | 🏆 Best model |
-| XGBoost | 11.51 | 9.18 | 0.8230 | ✅ Very good |
-| Random Forest | 11.60 | 9.36 | 0.8203 | ✅ Good |
-| Keras Neural Network | 13.67 | 10.48 | 0.7506 | ✅ Improving with more data |
-| Huber Regression | 18.73 | 13.28 | 0.5315 | ⚠️ Linear baseline |
+| **Gradient Boosting** | **11.2804** | **9.0554** | **0.8297** | 🏆 Best model |
+| Random Forest | 11.605 | 9.372 | 0.8197 | ✅ Good |
+| XGBoost | 11.7973 | 9.3638 | 0.8137 | ✅ Good |
+| Keras Neural Network | 17.174 | 14.0294 | 0.6052 | ✅ Improving with more data |
+| Huber Regression | 19.796 | 13.6271 | 0.4755 | ⚠️ Linear baseline |
 
 **Best Model: Gradient Boosting** — predicts AQI within ±11 points on average (R²=0.83)
 
