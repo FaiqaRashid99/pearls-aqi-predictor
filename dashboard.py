@@ -504,12 +504,12 @@ def aqi_donut(aqi, size=158):
 # ─────────────────────────────────────────────
 # DATA LOADING
 # ─────────────────────────────────────────────
-@st.cache_resource
+@st.cache_data(ttl=3600)   # reload model every hour so daily retrains are picked up
 def load_model():
     path = os.path.join(MODEL_DIR, "best_model.pkl")
     return joblib.load(path) if os.path.exists(path) else None
 
-@st.cache_resource
+@st.cache_data(ttl=3600)   # reload metadata every hour
 def load_metadata():
     path = os.path.join(MODEL_DIR, "model_metadata.json")
     if not os.path.exists(path):
@@ -1278,7 +1278,7 @@ def main():
     st.markdown(
         f'<div style="text-align:center;font-size:0.74rem;color:{T3};padding-bottom:1rem">'
         f'Pearls AQI Predictor · {CITY} · '
-        f'Data: AQICN · OpenWeatherMap · Open-Meteo · '
+        f'Data: OpenWeatherMap · Open-Meteo · '
         f'Automated via GitHub Actions'
         f'</div>',
         unsafe_allow_html=True
