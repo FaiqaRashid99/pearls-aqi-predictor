@@ -549,9 +549,9 @@ def load_feature_store():
 # Known Islamabad/Rawalpindi AQICN station feed slugs
 # The bounds/map API requires a paid token — named slugs work with any free token
 _ISLAMABAD_SLUGS = [
-    ("US Embassy",         "islamabad"),
-    ("Rawalpindi",         "rawalpindi"),
-    ("Pakistan/Islamabad", "pakistan/islamabad"),
+    ("US Embassy",         "islamabad"), # Only this one is working
+    ("Rawalpindi",         "rawalpindi"), # not working
+    ("Pakistan/Islamabad", "pakistan/islamabad"), # not working
 ]
 
 @st.cache_data(ttl=1800)   # recheck working stations every 30 min
@@ -791,8 +791,8 @@ def make_forecast(model, forecast_df, last_aqi):
             "aqi_rolling_72h": get_roll(72), "aqi_rolling_96h": get_roll(96),
         }
         raw_pred = float(model.predict(pd.DataFrame([feats])[FEATURE_COLS])[0])
-        # Clamp prediction within ±60 of current AQI — prevents unrealistic swings
-        # from synthetic training data. Remove once model is retrained on real sensor data.
+        # Clamp prediction within ±60 of current AQI — prevents unrealistic swings from synthetic training data. 
+        # I will Remove once model is retrained on real sensor data.
         pred = max(0, min(500, round(
             np.clip(raw_pred, last_aqi * 0.45, last_aqi * 1.55), 1
         )))
