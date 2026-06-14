@@ -1,8 +1,8 @@
 {
   "best_model": "Random Forest",
-  "rmse": 12.8139,
-  "mae": 9.6246,
-  "r2": 0.788,
+  "rmse": 13.0183,
+  "mae": 9.7524,
+  "r2": 0.7796,
   "feature_cols": [
     "temp",
     "feels_like",
@@ -32,38 +32,38 @@
     "aqi_rolling_72h",
     "aqi_rolling_96h"
   ],
-  "training_rows": 6997,
-  "trained_at": "2026-06-13 07:02:51",
+  "training_rows": 7004,
+  "trained_at": "2026-06-14 07:27:44",
   "all_results": [
     {
       "model": "Random Forest",
-      "rmse": 12.8139,
-      "mae": 9.6246,
-      "r2": 0.788
+      "rmse": 13.0183,
+      "mae": 9.7524,
+      "r2": 0.7796
     },
     {
       "model": "Gradient Boosting",
-      "rmse": 13.409,
-      "mae": 10.0002,
-      "r2": 0.7679
+      "rmse": 13.5924,
+      "mae": 10.1667,
+      "r2": 0.7598
     },
     {
       "model": "XGBoost",
-      "rmse": 13.0433,
-      "mae": 9.8988,
-      "r2": 0.7804
+      "rmse": 13.384,
+      "mae": 10.1127,
+      "r2": 0.7671
     },
     {
       "model": "Huber Regression",
-      "rmse": 29.532,
-      "mae": 16.677,
-      "r2": -0.1259
+      "rmse": 30.0749,
+      "mae": 16.9479,
+      "r2": -0.1762
     },
     {
       "model": "Keras Neural Network",
-      "rmse": 23.1561,
-      "mae": 16.8493,
-      "r2": 0.3078
+      "rmse": 26.0464,
+      "mae": 18.3562,
+      "r2": 0.1178
     }
   ]
 }
