@@ -4,17 +4,39 @@ from sklearn.preprocessing import RobustScaler
 from sklearn.impute import KNNImputer
 
 def preprocess_features(df: pd.DataFrame, scale_features: bool = False) -> pd.DataFrame:
-    """STRICT Leakage Control - Optimized for True 3-Day Forecasting"""
-    
     print("🚀 Starting STRICT leakage-controlled preprocessing...")
     original_rows = len(df)
-    
+
     df = df.copy()
     df.drop_duplicates(subset=["timestamp"], keep="last", inplace=True)
-    df.sort_values("timestamp", inplace=True)
     df["timestamp"] = pd.to_datetime(df["timestamp"])
-    
+    df.sort_values("timestamp", inplace=True)
+
     print(f"   Initial rows: {original_rows} | After dedup: {len(df)}")
+
+    # ── NEW: snap onto a true hourly grid before any lag/rolling math ──
+    # df = df.set_index("timestamp")
+    # numeric_cols = df.select_dtypes(include=[np.number]).columns
+    # df = df.resample("1h").mean(numeric_only=True)
+    # # Only fill SHORT gaps (<=6h) by interpolation — long gaps stay NaN
+    # # and get dropped later, rather than being invented from thin air.
+    # df[numeric_cols] = df[numeric_cols].interpolate(limit=6, limit_direction="forward")
+    # df.reset_index(inplace=True)
+
+    df = df.set_index("timestamp")
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+
+    # Mark which hourly slots are backed by an actual collected row,
+    # BEFORE resample manufactures empty slots for missing hours.
+    df["is_real"] = 1
+
+    df = df.resample("1h").mean(numeric_only=True)
+    fill_cols = [c for c in numeric_cols if c != "is_real"]
+    df[fill_cols] = df[fill_cols].interpolate(limit=6, limit_direction="forward")
+    df["is_real"] = df["is_real"].fillna(0)   # NaN here = no real row that hour
+    df.reset_index(inplace=True)
+
+    print(f"   After hourly resample: {len(df)} rows")
     
     # Outlier Removal
     for col in ["aqi", "pm25", "pm10"]:
@@ -61,12 +83,20 @@ def preprocess_features(df: pd.DataFrame, scale_features: bool = False) -> pd.Da
     df["season"] = df["month"].map({12:0,1:0,2:0,3:1,4:1,5:1,6:2,7:2,8:2,9:3,10:3,11:3})
     
     # === STRICT LEAKAGE CONTROL ===
-    # Only long-term historical signals (2-3 days+)
-    df["aqi_lag_72h"] = df["aqi"].shift(72)      # 3 days ago
-    df["aqi_lag_96h"] = df["aqi"].shift(96)      # 4 days ago
+    # # Only long-term historical signals (2-3 days+)
+    # df["aqi_lag_72h"] = df["aqi"].shift(72)      # 3 days ago
+    # df["aqi_lag_96h"] = df["aqi"].shift(96)      # 4 days ago
     
-    df["aqi_rolling_72h"] = df["aqi"].rolling(window=72, min_periods=24).mean()   # 3-day average
+    # df["aqi_rolling_72h"] = df["aqi"].rolling(window=72, min_periods=24).mean()   # 3-day average
+    # df["aqi_rolling_96h"] = df["aqi"].rolling(window=96, min_periods=24).mean()
+
+       # Lag / rolling — now these are genuinely hour-accurate
+    df["aqi_lag_72h"] = df["aqi"].shift(72)
+    df["aqi_lag_96h"] = df["aqi"].shift(96)
+    
+    df["aqi_rolling_72h"] = df["aqi"].rolling(window=72, min_periods=24).mean()
     df["aqi_rolling_96h"] = df["aqi"].rolling(window=96, min_periods=24).mean()
+
     
     # Remove change feature completely (biggest source of leakage)
     # df["aqi_change_48h"] = ...  ← Removed

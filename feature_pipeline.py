@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from supabase import create_client
+import time  
 
 load_dotenv()
 
@@ -20,6 +21,20 @@ os.makedirs(FEATURE_STORE, exist_ok=True)
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# ─────────────────────────────────────────────
+# RETRY WRAPPER
+# ─────────────────────────────────────────────
+def fetch_with_retry(fetch_fn, *args, retries=3, backoff=5, **kwargs):
+    last_err = None
+    for attempt in range(1, retries + 1):
+        try:
+            return fetch_fn(*args, **kwargs)
+        except Exception as e:
+            last_err = e
+            print(f"   Attempt {attempt}/{retries} failed: {e}")
+            if attempt < retries:
+                time.sleep(backoff * attempt)
+    raise last_err
 
 # ─────────────────────────────────────────────
 # PM2.5 → AQI  (US EPA formula)
@@ -180,11 +195,11 @@ def run_pipeline():
     print(f"{'='*55}")
 
     print("Fetching AQI data (OpenWeatherMap Air Pollution)...")
-    aqi_data = fetch_aqi()
+    aqi_data = fetch_with_retry(fetch_aqi)          # ← changed from fetch_aqi()
     print(f"   AQI: {aqi_data['aqi']} | PM2.5: {aqi_data['pm25']} µg/m³")
 
     print("Fetching weather data...")
-    weather_data = fetch_weather()
+    weather_data = fetch_with_retry(fetch_weather)  # ← changed from fetch_weather()
     print(f"   Temp: {weather_data['temp']}°C | Humidity: {weather_data['humidity']}%")
 
     print("Engineering features...")

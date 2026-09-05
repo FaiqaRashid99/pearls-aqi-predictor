@@ -2,7 +2,7 @@ name: Feature Pipeline
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '17 * * * *'   # avoid :00 traffic jam
   workflow_dispatch:
 
 permissions:
@@ -12,7 +12,7 @@ jobs:
   feature-pipeline:
     runs-on: ubuntu-latest
     env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Fixes "Error: Cannot find module 'node:fs'" in some actions
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,45 +28,21 @@ jobs:
       - name: Run feature pipeline
         run: python feature_pipeline.py
         env:
-          AQICN_TOKEN: ${{ secrets.AQICN_TOKEN }}
           OPENWEATHER_KEY: ${{ secrets.OPENWEATHER_KEY }}
           CITY: Islamabad
           FEATURE_STORE_PATH: feature_store
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
 
-      - name: Commit new data
+      - name: Commit new data (with retry on push conflict)
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add feature_store/
           git diff --staged --quiet && echo "No changes" && exit 0
           git commit -m "ci: hourly feature update"
-          git pull origin main --rebase --strategy-option=theirs
-          git push
-
-      # - name: Commit changes
-      #   run: |
-      #     git config --global user.name "github-actions[bot]"
-      #     git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
-      #     if [[ -n $(git status --porcelain) ]]; then
-      #       git add feature_store/aqi_features.csv
-      #       git commit -m "ci: hourly feature update"
-      #       echo "CHANGES=true" >> $GITHUB_ENV
-      #     else
-      #       echo "No changes to commit"
-      #       echo "CHANGES=false" >> $GITHUB_ENV
-      #     fi
-
-      # - name: Create Pull Request
-      #   if: env.CHANGES == 'true'
-      #   uses: peter-evans/create-pull-request@v7
-      #   with:
-      #     token: ${{ secrets.GITHUB_TOKEN }}
-      #     commit-message: "ci: hourly feature update"
-      #     title: "ci: hourly feature update"
-      #     body: "Automated hourly AQI feature update from GitHub Actions."
-      #     branch: "automated-feature-update"
-      #     base: "main"
-      #     delete-branch: true
+          for i in 1 2 3 4 5; do
+            git pull origin main --rebase --strategy-option=theirs && git push && break
+            echo "Push attempt $i failed, retrying in 10s..."
+            sleep 10
+          done

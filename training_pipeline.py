@@ -72,7 +72,7 @@ def load_features() -> pd.DataFrame:
         return pd.read_csv(path, parse_dates=["timestamp"]).sort_values("timestamp")
 
 
-def prepare_data(df: pd.DataFrame):
+def prepare_data(df: pd.DataFrame, test_window_days: int = 30):
     FEATURE_COLS = get_feature_columns()
     available    = [c for c in FEATURE_COLS if c in df.columns]
     print(f"\nFeatures ({len(available)}): {available}")
@@ -80,13 +80,40 @@ def prepare_data(df: pd.DataFrame):
     X = df[available].copy()
     y = df[TARGET_COL].copy()
 
-    split_idx = int(len(df) * 0.8)
-    X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
-    y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+    latest_ts = df["timestamp"].max()
+    cutoff    = latest_ts - pd.Timedelta(days=test_window_days)
 
-    print(f"   Train: {len(X_train)} | Test: {len(X_test)}")
-    return X_train, X_test, y_train, y_test, available
+    train_mask = df["timestamp"] < cutoff
+    test_mask  = ~train_mask
 
+    X_train, X_test = X[train_mask], X[test_mask]
+    y_train, y_test = y[train_mask], y[test_mask]
+
+    # ── NEW: real-vs-interpolated coverage check ─────────────────────
+    test_real_pct = None
+    if "is_real" in df.columns:
+        test_real_pct  = 100 * df.loc[test_mask, "is_real"].mean()
+        train_real_pct = 100 * df.loc[train_mask, "is_real"].mean()
+        print(f"   Train window real-data coverage: {train_real_pct:.1f}%")
+        print(f"   Test window real-data coverage:  {test_real_pct:.1f}%")
+        if test_real_pct < 80:
+            print(f"   ⚠️  Less than 80% of the test window is real collected "
+                  f"data — treat R²/RMSE below as unreliable until this climbs.")
+    # ──────────────────────────────────────────────────────────────────
+
+    print(f"   Test window: last {test_window_days} days ({cutoff} → {latest_ts})")
+    print(f"   Train: {len(X_train)} rows ({df.loc[train_mask, 'timestamp'].min()} → {cutoff})")
+    print(f"   Test:  {len(X_test)} rows")
+
+    min_test_rows = 50
+    if len(X_test) < min_test_rows:
+        print(f"   ⚠️  Test window has only {len(X_test)} rows "
+              f"(<{min_test_rows}) — falling back to tail-20% split")
+        split_idx = int(len(df) * 0.8)
+        X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
+        y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+
+    return X_train, X_test, y_train, y_test, available, test_real_pct
 
 def evaluate(name: str, y_test, y_pred) -> dict:
     rmse = np.sqrt(mean_squared_error(y_test, y_pred))
@@ -236,7 +263,7 @@ def compute_shap(pipeline, X_test, feature_cols):
         return None
 
 
-def save_best_model(results, feature_cols, n_train: int):
+def save_best_model(results, feature_cols, n_train: int, test_real_pct=None):
     sklearn_results = [r for r in results if r.get("pipeline") is not None]
     best = min(sklearn_results, key=lambda x: x["rmse"])
 
@@ -248,6 +275,7 @@ def save_best_model(results, feature_cols, n_train: int):
         "rmse":          round(best["rmse"], 4),
         "mae":           round(best["mae"],  4),
         "r2":            round(best["r2"],   4),
+        "test_real_pct": round(test_real_pct, 1) if test_real_pct is not None else None,
         "feature_cols":  feature_cols,
         "training_rows": n_train,           # ← now dynamic
         "trained_at":    datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
@@ -273,10 +301,19 @@ if __name__ == "__main__":
     print("="*65)
 
     df = load_features()
+
+    # ── NEW: data coverage check ──────────────────────────────────
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    span_hours = (df["timestamp"].max() - df["timestamp"].min()).total_seconds() / 3600
+    coverage = 100 * len(df) / span_hours
+    print(f"   Data coverage: {coverage:.1f}% of expected hourly rows ({len(df)}/{int(span_hours)})")
+    # ─────────────────────────────────────────────────────────────
+
     print("\nApplying preprocessing...")
     df = preprocess_features(df)
 
-    X_train, X_test, y_train, y_test, feature_cols = prepare_data(df)
+    # X_train, X_test, y_train, y_test, feature_cols = prepare_data(df)
+    X_train, X_test, y_train, y_test, feature_cols, test_real_pct = prepare_data(df)
 
     print("\n" + "─"*65)
     print("TRAINING MODELS")
@@ -302,7 +339,8 @@ if __name__ == "__main__":
     print("SAVING BEST MODEL")
     print("─"*65)
     # save_best_model(all_results, feature_cols)
-    save_best_model(all_results, feature_cols, n_train=len(X_train))
+    # save_best_model(all_results, feature_cols, n_train=len(X_train))
+    save_best_model(all_results, feature_cols, n_train=len(X_train), test_real_pct=test_real_pct)
 
     print("\n" + "="*65)
     print("  FINAL RESULTS")
