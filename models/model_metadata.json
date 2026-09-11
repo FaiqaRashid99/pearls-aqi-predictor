@@ -1,9 +1,9 @@
 {
   "best_model": "Huber Regression",
-  "rmse": 17.5649,
-  "mae": 13.3117,
-  "r2": -0.0843,
-  "test_real_pct": 57.5,
+  "rmse": 17.1199,
+  "mae": 12.7311,
+  "r2": -0.0311,
+  "test_real_pct": 56.2,
   "feature_cols": [
     "temp",
     "feels_like",
@@ -33,38 +33,38 @@
     "aqi_rolling_72h",
     "aqi_rolling_96h"
   ],
-  "training_rows": 10278,
-  "trained_at": "2026-09-10 08:00:01",
+  "training_rows": 10302,
+  "trained_at": "2026-09-11 07:56:24",
   "all_results": [
     {
       "model": "Random Forest",
-      "rmse": 20.6968,
-      "mae": 15.1592,
-      "r2": -0.5054
+      "rmse": 20.217,
+      "mae": 14.8654,
+      "r2": -0.4379
     },
     {
       "model": "Gradient Boosting",
-      "rmse": 21.4099,
-      "mae": 15.7853,
-      "r2": -0.6109
+      "rmse": 21.7374,
+      "mae": 15.976,
+      "r2": -0.6623
     },
     {
       "model": "XGBoost",
-      "rmse": 22.3428,
-      "mae": 16.4085,
-      "r2": -0.7544
+      "rmse": 21.398,
+      "mae": 15.7683,
+      "r2": -0.6108
     },
     {
       "model": "Huber Regression",
-      "rmse": 17.5649,
-      "mae": 13.3117,
-      "r2": -0.0843
+      "rmse": 17.1199,
+      "mae": 12.7311,
+      "r2": -0.0311
     },
     {
       "model": "Keras Neural Network",
-      "rmse": 26.5613,
-      "mae": 21.1776,
-      "r2": -1.4794
+      "rmse": 25.2653,
+      "mae": 19.9804,
+      "r2": -1.2456
     }
   ]
 }
