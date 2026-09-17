@@ -50,46 +50,55 @@ def load_features() -> pd.DataFrame:
         page = 0
         while True:
             result = (supabase.table("aqi_features")
-                      .select("*")
-                      .order("timestamp")
-                      .range(page * 1000, (page + 1) * 1000 - 1)
-                      .execute())
+                       .select("*")
+                       .order("timestamp")
+                       .range(page * 1000, (page + 1) * 1000 - 1)
+                       .execute())
             if not result.data:
                 break
             all_rows.extend(result.data)
             if len(result.data) < 1000:
                 break
             page += 1
+
         df = pd.DataFrame(all_rows)
         df["timestamp"] = pd.to_datetime(df["timestamp"])
         df.sort_values("timestamp", inplace=True)
         df.reset_index(drop=True, inplace=True)
-        print(f"   Loaded {len(df)} rows from Supabase")
+
+        if "data_source" in df.columns:
+            before = len(df)
+            df = df[df["data_source"] != "synthetic_backfill"]
+            print(f" Filtered synthetic rows: {before} -> {len(df)}")
+
+        print(f" Loaded {len(df)} rows from Supabase")
         return df
     except Exception as e:
-        print(f"   Supabase failed, loading CSV: {e}")
+        print(f" Supabase failed, loading CSV: {e}")
         path = os.path.join(os.getenv("FEATURE_STORE_PATH", "feature_store"), "aqi_features.csv")
         return pd.read_csv(path, parse_dates=["timestamp"]).sort_values("timestamp")
 
-
 def prepare_data(df: pd.DataFrame, test_window_days: int = 30):
     FEATURE_COLS = get_feature_columns()
-    available    = [c for c in FEATURE_COLS if c in df.columns]
-    print(f"\nFeatures ({len(available)}): {available}")
-
+    available = [c for c in FEATURE_COLS if c in df.columns]
     X = df[available].copy()
     y = df[TARGET_COL].copy()
 
     latest_ts = df["timestamp"].max()
-    cutoff    = latest_ts - pd.Timedelta(days=test_window_days)
-
+    cutoff = latest_ts - pd.Timedelta(days=test_window_days)
     train_mask = df["timestamp"] < cutoff
-    test_mask  = ~train_mask
+    test_mask = ~train_mask
+
+    # Evaluate only against genuinely measured targets, never interpolated fill
+    if "is_real" in df.columns:
+        before_test_n = test_mask.sum()
+        test_mask = test_mask & (df["is_real"] == 1)
+        print(f" Restricted test set to real rows only: {before_test_n} -> {test_mask.sum()}")
 
     X_train, X_test = X[train_mask], X[test_mask]
     y_train, y_test = y[train_mask], y[test_mask]
 
-    # ── NEW: real-vs-interpolated coverage check ─────────────────────
+        # ── real-vs-interpolated coverage check ─────────────────────
     test_real_pct = None
     if "is_real" in df.columns:
         test_real_pct  = 100 * df.loc[test_mask, "is_real"].mean()

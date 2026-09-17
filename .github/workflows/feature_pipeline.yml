@@ -2,7 +2,8 @@ name: Feature Pipeline
 
 on:
   schedule:
-    - cron: '17 * * * *'   # avoid :00 traffic jam
+    - cron: '17 * * * *'   # primary
+    - cron: '47 * * * *'   # backstop, same job, exits early if already run this hour
   workflow_dispatch:
 
 permissions:
