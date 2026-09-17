@@ -3,6 +3,14 @@ import numpy as np
 from sklearn.preprocessing import RobustScaler
 from sklearn.impute import KNNImputer
 
+def _to_naive_ns(series: pd.Series) -> np.ndarray:
+    """Convert a (possibly tz-aware) datetime Series to naive datetime64[ns].
+    numpy can't do timedelta arithmetic on tz-aware Timestamps -- .to_numpy()
+    silently returns dtype('O') object arrays in that case, which is what
+    broke the subtraction below. Safe to drop tz here since everything is UTC."""
+    if series.dt.tz is not None:
+        series = series.dt.tz_localize(None)
+    return series.to_numpy(dtype="datetime64[ns]")
 
 def _real_only_lag_rolling(df: pd.DataFrame, roll_half_window_hours: int = 12) -> pd.DataFrame:
     """
@@ -39,7 +47,8 @@ def _real_only_lag_rolling(df: pd.DataFrame, roll_half_window_hours: int = 12) -
             df[f"aqi_rolling_{hours}h"] = np.nan
         return df
 
-    real_ts = real["timestamp"].to_numpy()
+    # real_ts = real["timestamp"].to_numpy()
+    real_ts = _to_naive_ns(real["timestamp"])
     real_val = real["aqi"].to_numpy(dtype=float)
     prefix = np.concatenate(([0.0], np.cumsum(real_val)))
 
@@ -59,7 +68,8 @@ def _real_only_lag_rolling(df: pd.DataFrame, roll_half_window_hours: int = 12) -
         ok = (idx >= 0) & (np.abs(real_ts[idx_clipped] - target_times) <= tolerance)
         return np.where(ok, vals, np.nan)
 
-    ts = df["timestamp"].to_numpy()
+    # ts = df["timestamp"].to_numpy()
+    ts = _to_naive_ns(df["timestamp"])
     half_window = np.timedelta64(roll_half_window_hours, "h")
     lag_tolerance = np.timedelta64(6, "h")
 
