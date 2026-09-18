@@ -139,9 +139,9 @@ def train_sklearn_models(X_train, X_test, y_train, y_test):
     print("\nTraining Random Forest...")
     rf = Pipeline([
         ("imputer", SimpleImputer(strategy="median")),
-        ("model",   RandomForestRegressor(
-            n_estimators=300, max_depth=10,
-            min_samples_leaf=4, max_features=0.7,
+        ("model", RandomForestRegressor(
+            n_estimators=300, max_depth=7,
+            min_samples_leaf=10, max_features=0.7,
             random_state=42, n_jobs=-1
         ))
     ])
@@ -149,13 +149,16 @@ def train_sklearn_models(X_train, X_test, y_train, y_test):
     results.append({**evaluate("Random Forest", y_test, rf.predict(X_test)), "pipeline": rf})
 
     # ── Gradient Boosting ──────────────────────────────────────────
+    # Reduced capacity + built-in early stopping: was overfitting hardest
+    # of all five models against the current (smaller, real-only) dataset.
     print("\nTraining Gradient Boosting...")
     gb = Pipeline([
         ("imputer", SimpleImputer(strategy="median")),
-        ("model",   GradientBoostingRegressor(
-            n_estimators=400, learning_rate=0.04,
-            max_depth=5, subsample=0.8,
-            min_samples_leaf=4, random_state=42
+        ("model", GradientBoostingRegressor(
+            n_estimators=120, learning_rate=0.05,
+            max_depth=3, subsample=0.8,
+            min_samples_leaf=15, random_state=42,
+            n_iter_no_change=10, validation_fraction=0.15, tol=1e-4
         ))
     ])
     gb.fit(X_train, y_train)
@@ -166,10 +169,13 @@ def train_sklearn_models(X_train, X_test, y_train, y_test):
         print("\nTraining XGBoost...")
         xgb = Pipeline([
             ("imputer", SimpleImputer(strategy="median")),
-            ("model",   XGBRegressor(
-                n_estimators=300,
+            ("model", XGBRegressor(
+                n_estimators=150,
                 learning_rate=0.05,
-                max_depth=6,
+                max_depth=4,
+                subsample=0.8,
+                colsample_bytree=0.8,
+                min_child_weight=5,
                 random_state=42,
                 n_jobs=-1,
                 verbosity=0
@@ -177,19 +183,18 @@ def train_sklearn_models(X_train, X_test, y_train, y_test):
         ])
         xgb.fit(X_train, y_train)
         results.append({**evaluate("XGBoost", y_test, xgb.predict(X_test)), "pipeline": xgb})
-        
-    # ── Huber Regression (simple — no poly, can't handle 351 features) ──
+
+    # ── Huber Regression ──
     print("\nTraining Huber Regression...")
     huber = Pipeline([
         ("imputer", SimpleImputer(strategy="median")),
-        ("scaler",  StandardScaler()),
-        ("model",   HuberRegressor(epsilon=1.35, alpha=0.01, max_iter=1000))
+        ("scaler", StandardScaler()),
+        ("model", HuberRegressor(epsilon=1.35, alpha=0.01, max_iter=1000))
     ])
     huber.fit(X_train, y_train)
     results.append({**evaluate("Huber Regression", y_test, huber.predict(X_test)), "pipeline": huber})
 
     return results
-
 
 def train_keras_model(X_train, X_test, y_train, y_test, feature_cols):
     print("\nTraining Keras Neural Network...")
