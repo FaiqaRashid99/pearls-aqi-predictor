@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: feature-pipeline
+  cancel-in-progress: false
+
 jobs:
   feature-pipeline:
     runs-on: ubuntu-latest
